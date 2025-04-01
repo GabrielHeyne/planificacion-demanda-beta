@@ -32,7 +32,7 @@ if st.session_state['demanda_limpia'] is None:
         # Aplicar limpieza
         cleaned_demand_df = clean_demand(demand_df)
 
-        # Guardar en session_state y archivo
+        # Guardar en session_state
         st.session_state['demanda_limpia'] = cleaned_demand_df
 
         os.makedirs("data", exist_ok=True)
@@ -42,6 +42,7 @@ if st.session_state['demanda_limpia'] is None:
 
         # Mensaje y refrescar app
         st.success("✅ Archivo cargado y demanda limpia generada correctamente.")
+        st.session_state['demanda_limpia_path'] = file_path  # Almacenar la ruta del archivo limpio
         st.rerun()
 
 else:
@@ -51,8 +52,8 @@ else:
     st.dataframe(cleaned_demand_df[['sku', 'fecha', 'demanda', 'demanda_sin_stockout', 'demanda_sin_outlier']])
 
     # Botón de descarga
-    file_path = "data/demanda_limpia.xlsx"
-    if os.path.exists(file_path):
+    if 'demanda_limpia_path' in st.session_state:
+        file_path = st.session_state['demanda_limpia_path']
         st.download_button(
             label="📥 Descargar Excel de Demanda Limpia",
             data=open(file_path, 'rb').read(),
