@@ -250,10 +250,20 @@ top10_quiebres = resumen_quiebres.sort_values(by='unidades_perdidas', ascending=
 
 # --- Unidades perdidas por mes --- 
 df_quiebre_top['fecha'] = pd.to_datetime(df_quiebre_top['fecha'])
+
+# Convertir las fechas a formato de periodo mensual y luego a timestamp
 df_quiebre_top['mes'] = df_quiebre_top['fecha'].dt.to_period('M').dt.to_timestamp()
+
+# Agrupar por mes y sumar las unidades perdidas
 unidades_perdidas_mes = df_quiebre_top[df_quiebre_top['quiebre_stock']].groupby('mes')['unidades_perdidas'].sum().reset_index()
+
+# Convertir unidades perdidas a enteros
 unidades_perdidas_mes['unidades_perdidas'] = unidades_perdidas_mes['unidades_perdidas'].astype(int)
 
+# Asegurarse de que 'mes' esté en formato adecuado para el gráfico
+unidades_perdidas_mes['mes'] = unidades_perdidas_mes['mes'].dt.strftime('%b %Y')
+
+# Crear el gráfico de barras con una clave única
 fig_barras = px.bar(
     unidades_perdidas_mes,
     x='mes',
@@ -264,7 +274,7 @@ fig_barras = px.bar(
 
 fig_barras.update_layout(
     title_text="<span style='font-weight:normal; font-size:16px; font-family: Montserrat; color:black;'>📉 Unidades Perdidas por Mes</span>",
-    title_x=0.3,  # Centrado del título
+    title_x=0.4,  # Centrado del título
     title_y=0.95,  # Ajustar la posición vertical
     title_font=dict(
         family="Montserrat",
@@ -276,11 +286,12 @@ fig_barras.update_layout(
         family="Montserrat",
         size=12,
         color="black"
-    )
+    ),
+    height=420  # Ajusta el valor de height aquí para cambiar la altura del gráfico
 )
 
 fig_barras.update_traces(
-    marker_color='orange',
+    marker_color='blue',
     textposition='outside',
     textfont=dict(family="Montserrat", size=12)
 )
@@ -302,7 +313,7 @@ tabla_html = """
 .custom-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 14px;
+    font-size: 12px;
     text-align: center;
     font-family: 'Montserrat', sans-serif;
 }
@@ -342,8 +353,7 @@ tabla_html += "</tbody></table></div>"
 col1, col2 = st.columns([1, 1.4])
 
 with col1:
-    components.html(tabla_html, height=500, scrolling=True)
+    components.html(tabla_html, height=500, scrolling=True)  # Se eliminó el parámetro 'key'
 
 with col2:
-    st.plotly_chart(fig_barras, use_container_width=True)
-
+    st.plotly_chart(fig_barras, use_container_width=True)  # Se muestra solo el gráfico una vez
