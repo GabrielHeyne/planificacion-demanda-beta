@@ -80,14 +80,21 @@ total_unidades_perdidas = int(df_quiebre['unidades_perdidas'].sum())
 
 # --- Mostrar KPIs (ahora con 4 columnas) ---
 col1, col2, col3, col4 = st.columns(4)
+
+# Calcular valores como enteros
+demanda_real_total = int(df_filtrado['demanda'].sum())
+demanda_limpia_total = int(df_filtrado['demanda_sin_outlier'].sum())
+unidades_perdidas_total = int(total_unidades_perdidas)
+
+# Mostrar KPIs sin formateo que cause errores de idioma
 with col1:
-    st.metric("Demanda Real Total", f"{int(df_filtrado['demanda'].sum()):,} un.")
+    st.metric("Demanda Real Total", f"{demanda_real_total} un.")
 with col2:
-    st.metric("Demanda Limpia Total", f"{int(df_filtrado['demanda_sin_outlier'].sum()):,} un.")
+    st.metric("Demanda Limpia Total", f"{demanda_limpia_total} un.")
 with col3:
     st.metric("% Quiebre de Stock", f"{porcentaje_quiebre} %")
 with col4:
-    st.metric("Unidades Perdidas", f"{total_unidades_perdidas:,} un.")
+    st.metric("Unidades Perdidas", f"{unidades_perdidas_total} un.")
 
 # --- Gráfico de torta (irá debajo del gráfico semanal) ---
 fig_quiebre = go.Figure(data=[go.Pie(
@@ -287,7 +294,8 @@ fig_barras.update_layout(
         size=12,
         color="black"
     ),
-    height=420  # Ajusta el valor de height aquí para cambiar la altura del gráfico
+    height=420,  # Ajusta el valor de height aquí para cambiar la altura del gráfico
+	margin=dict(t=50)
 )
 
 fig_barras.update_traces(
