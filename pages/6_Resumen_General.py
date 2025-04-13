@@ -36,8 +36,41 @@ st.markdown("""
         font-size: 16px !important;
         text-align: center !important;
     }
+
+    /* Subtítulos de tablas */
+    .element-container h4 {
+        font-size: 16px !important;
+        margin-bottom: 0.5rem !important;
+    }
+
+    /* Estilo para las tablas de ranking */
+    .stDataFrame table {
+        font-size: 12px !important;
+        table-layout: fixed;
+        width: 100% !important;
+    }
+
+    .stDataFrame td, .stDataFrame th {
+        text-align: center !important;
+        vertical-align: middle !important;
+        padding: 2px 6px !important;
+        height: 30px !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* Tarjetas visuales (fondos y bordes para gráficos, tablas, etc.) */
+    .card {
+        background-color: #f7f7f7;
+        padding: 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 0 6px rgba(0, 0, 0, 0.05);
+        margin-bottom: 1.5rem;
+    }
     </style>
 """, unsafe_allow_html=True)
+
 
 st.markdown("## Resumen General de Indicadores")
 
@@ -129,18 +162,52 @@ df_demand_3m = df_demand[df_demand['mes'].isin(meses_validos)]
 demanda_promedio_mensual = int(df_demand_3m.groupby('mes')['demanda'].sum().mean())
 
 # --- KPIs visuales (alineados) ---
+kpi_style = """
+    <div style="
+        background-color:#FAFAFA;
+        padding:16px;
+        border-radius:20px;
+        text-align:center;
+        height:120px;
+        display:flex;
+        flex-direction:column;
+        justify-content:space-between;
+        margin: 4px;
+        box-shadow: 0px 2px 6px rgba(0,0,0,0.04);
+    ">
+        <div style="font-size:14px; font-weight:500; height:36px; display:flex; align-items:center; justify-content:center; gap:6px;">
+            {icon} {label}
+        </div>
+        <div style="font-size:35px; font-weight:400;">{value}</div>
+    </div>
+"""
+
+
+
+
+
+# Fila 1
 col1, col2, col3, col4 = st.columns(4)
-col6, col7, col8, col9 = st.columns(4)
+col1.markdown(kpi_style.format(icon="📦", label="Stock Actual", value=f"{total_stock:,}"), unsafe_allow_html=True)
+col2.markdown(kpi_style.format(icon="🛒", label="Unidades Vendidas (12M)", value=f"{unidades_vendidas_12m:,}"), unsafe_allow_html=True)
+col3.markdown(kpi_style.format(icon="💰", label="Facturación (12M)", value=f"€ {facturacion_12m:,}"), unsafe_allow_html=True)
+col4.markdown(kpi_style.format(icon="🚚", label="Unidades en Camino", value=f"{unidades_en_camino:,}"), unsafe_allow_html=True)
 
-col1.metric("Existencias Totales", f"{total_stock:,}")
-col2.metric("Unidades Vendidas (12M)", f"{unidades_vendidas_12m:,}")
-col3.metric("Facturación (12M)", f"€ {facturacion_12m:,}")
-col4.metric("Unidades en Camino", f"{unidades_en_camino:,}")
+# Separación
+st.markdown("<div style='margin-top: 12px;'></div>", unsafe_allow_html=True)
 
-col6.metric("Unidades Perdidas (Histórico)", f"{unidades_perdidas_hist:,}")
-col7.metric("Venta Perdida (Histórico)", f"€ {perdidas_hist_euros:,}")
-col8.metric("Demanda Prom. Mensual (3M)", f"{demanda_promedio_mensual:,}")
-col9.metric("Tasa de Quiebre", f"{tasa_quiebre:.1f}%")
+# Fila 2
+col5, col6, col7, col8 = st.columns(4)
+col5.markdown(kpi_style.format(icon="❌", label="Unidades Perdidas (Histórico)", value=f"{unidades_perdidas_hist:,}"), unsafe_allow_html=True)
+col6.markdown(kpi_style.format(icon="📉", label="Venta Perdida (Histórico)", value=f"€ {perdidas_hist_euros:,}"), unsafe_allow_html=True)
+col7.markdown(kpi_style.format(icon="📊", label="Demanda Prom. Mensual (3M)", value=f"{demanda_promedio_mensual:,}"), unsafe_allow_html=True)
+col8.markdown(kpi_style.format(icon="⚠️", label="Tasa de Quiebre", value=f"{tasa_quiebre:.1f}%"), unsafe_allow_html=True)
+
+
+
+
+# --- Espacio visual entre KPIs y gráficos ---
+st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
 
 # --- Gráfico 1: Demanda real vs limpia ---
 df_mensual = df_demand.groupby('mes').agg(
@@ -232,43 +299,143 @@ fig_perdidas_hist.update_layout(
     height=420,
     xaxis_tickangle=-45,
     yaxis=dict(rangemode="tozero"),
-    margin=dict(t=80, b=40)
+    margin=dict(t=30, b=40)
 )
 
 # --- Mostrar gráficos ---
 colg1, colg2 = st.columns(2)
+
 with colg1:
-    st.subheader("📈 Demanda Real vs Limpia")
-    st.plotly_chart(fig_demand, use_container_width=True)
+    with st.container():
+        st.markdown("""
+            <div style="background-color:#F7F7F7; padding:0px 0px; border-radius:16px; width:100%; text-align:center;">
+            <h4 style="margin: 0; line-height: 1.2; font-weight: 700;">📈 Demanda Real vs Limpia</h4>
+        </div>
+    """, unsafe_allow_html=True)
+
+        st.plotly_chart(fig_demand, use_container_width=True)
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
 with colg2:
-    st.subheader("📉 Demanda Histórica vs Pronóstico")
-    st.plotly_chart(fig_mix, use_container_width=True)
+    with st.container():
+        st.markdown("""
+            <div style="background-color:#F7F7F7; padding:0px 0px; border-radius:16px; width:100%; text-align:center;">
+            <h4 style="margin: 0; line-height: 1.2; font-weight: 700;">📈 Demanda Real vs Limpia</h4>
+        </div>
+    """, unsafe_allow_html=True)
+
+        st.plotly_chart(fig_mix, use_container_width=True)
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
 colg3, colg4 = st.columns(2)
+
 with colg3:
-    st.subheader("📦 Stock Histórico Mensual")
-    st.plotly_chart(fig_stock, use_container_width=True)
+    with st.container():
+        st.markdown("""
+            <div style="background-color:#F7F7F7; padding:0px 0px; border-radius:16px; width:100%; text-align:center;">
+                <h4 style="margin: 0; line-height: 1.2; font-weight: 700;">📦 Stock Histórico Mensual</h4>
+            </div>
+        """, unsafe_allow_html=True)
+        st.plotly_chart(fig_stock, use_container_width=True)
+
 with colg4:
-    st.subheader("📦 Stock Proyectado vs Pérdida Estimada (€)")
-    st.plotly_chart(fig_stock_loss, use_container_width=True)
+    with st.container():
+        st.markdown("""
+            <div style="background-color:#F7F7F7; padding:0px 0px; border-radius:16px; width:100%; text-align:center;">
+                <h4 style="margin: 0; line-height: 1.2; font-weight: 700;">📦 Stock Proyectado vs Pérdida Estimada (€)</h4>
+            </div>
+        """, unsafe_allow_html=True)
+        st.plotly_chart(fig_stock_loss, use_container_width=True)
 
-st.subheader("💸 Pérdidas Históricas Mensuales (€)")
-st.plotly_chart(fig_perdidas_hist, use_container_width=True)
 
-# --- Descargas ---
-st.markdown("### 📥 Descargar reportes consolidados")
-col1, col2 = st.columns(2)
-with col1:
+with st.container():
+    st.markdown("""
+        <div style="background-color:#F7F7F7; padding:0px 0px; border-radius:16px; width:100%; text-align:center;">
+            <h4 style="margin: 0; line-height: 1.2; font-weight: 700;">💸 Pérdidas Históricas Mensuales (€)</h4>
+        </div>
+    """, unsafe_allow_html=True)
+    st.plotly_chart(fig_perdidas_hist, use_container_width=True)
+
+# --- Rankings corregidos ---
+# Calcular promedio mensual real
+df_demand_ventas['mes'] = pd.to_datetime(df_demand_ventas['fecha']).dt.to_period('M').dt.to_timestamp()
+df_demand_ventas_mensual = df_demand_ventas.groupby(['sku', 'mes']).agg(
+    demanda=('demanda', 'sum'),
+    pxq=('venta_real_euros', 'sum')
+).reset_index()
+
+# Agrupación para rankings
+df_top = df_demand_ventas_mensual.groupby('sku').agg(
+    demanda_mensual=('demanda', 'mean'),
+    pxq=('pxq', 'sum')
+).reset_index()
+
+# Pérdidas por SKU
+perdidas_por_sku = df_hist.groupby('sku').agg(
+    unidades_perdidas=('unidades_perdidas', 'sum'),
+    perdida_euros=('valor_perdido_euros', 'sum')
+).reset_index()
+
+# --- Rankings finales y merge ---
+df_rank_loss = perdidas_por_sku.merge(df_top[['sku', 'demanda_mensual']], on='sku', how='left')
+df_rank_loss = df_rank_loss.sort_values(by='perdida_euros', ascending=False).head(10).reset_index(drop=True)
+df_rank_loss.insert(0, 'Ranking', range(1, len(df_rank_loss) + 1))
+
+df_rank_sales = df_top.sort_values(by='pxq', ascending=False).head(10).reset_index(drop=True)
+df_rank_sales.insert(0, 'Ranking', range(1, len(df_rank_sales) + 1))
+
+# --- Mostrar tablas con estilo centrado y sin decimales ---
+# --- st.markdown("### 🏆 Rankings por SKU (últimos 12 meses)")
+colA, colB = st.columns(2)
+
+with colA:
+    st.markdown("<h4 style='text-align: center;'>🔻 Top 10 SKUs con más pérdidas<br>(últimos 12 meses)</h4>", unsafe_allow_html=True)
+    st.dataframe(
+        df_rank_loss[['Ranking', 'sku', 'unidades_perdidas', 'perdida_euros']].rename(columns={
+            'sku': 'SKU', 'unidades_perdidas': 'Unidades Perdidas', 'perdida_euros': 'Pérdida (€)'
+        }).astype({'Unidades Perdidas': int, 'Pérdida (€)': int}),
+        use_container_width=True,
+        hide_index=True
+    )
+
+with colB:
+    st.markdown("<h4 style='text-align: center;'>🏆 Top 10 SKUs con más ventas<br>&nbsp;</h4>", unsafe_allow_html=True)
+    st.dataframe(
+        df_rank_sales[['Ranking', 'sku', 'demanda_mensual', 'pxq']].rename(columns={
+            'sku': 'SKU', 'demanda_mensual': 'Demanda Mensual', 'pxq': 'PxQ (€)'
+        }).astype({'Demanda Mensual': int, 'PxQ (€)': int}),
+        use_container_width=True,
+        hide_index=True
+    )
+
+
+
+# --- Descargar reportes centrado con columnas ---
+st.markdown("""
+    <div style="text-align: center;">
+        <h4 style="margin-bottom: 1.5rem;">📥 Descargar reportes consolidados</h4>
+    </div>
+""", unsafe_allow_html=True)
+
+# Crear columnas con espacio vacío a los lados para centrar
+col_empty1, col_btn1, col_btn2, col_empty2 = st.columns([1, 2, 2, 1])
+
+with col_btn1:
     st.download_button(
         label="📄 Descargar Histórico Consolidado",
         data=df_hist.to_csv(index=False).encode('utf-8'),
         file_name="resumen_historico.csv",
-        mime="text/csv"
+        mime="text/csv",
+        key="btn_descarga_hist"
     )
-with col2:
+
+with col_btn2:
     st.download_button(
         label="📄 Descargar Proyección Futura",
         data=df_futuro.to_csv(index=False).encode('utf-8'),
         file_name="proyeccion_futura.csv",
-        mime="text/csv"
+        mime="text/csv",
+        key="btn_descarga_fut"
     )
-

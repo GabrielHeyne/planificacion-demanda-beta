@@ -5,13 +5,20 @@ from datetime import date
 import plotly.graph_objects as go
 from modules.forecast_engine import forecast_simple
 
-# Fuente Montserrat global
+# Fuente moderna Inter + Manrope
 st.markdown("""
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat&display=swap" rel="stylesheet">
     <style>
-        html, body, [class*="css"]  {
-            font-family: 'Montserrat', sans-serif;
-        }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Manrope:wght@600;700&display=swap');
+
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif;
+    }
+
+    h1, h2, h3, h4, h5, h6, .stMarkdown h2, .stMarkdown h3 {
+        font-family: 'Manrope', sans-serif !important;
+        font-weight: 700 !important;
+        font-size: 18px !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 

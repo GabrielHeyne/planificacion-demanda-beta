@@ -1,33 +1,49 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
-from datetime import timedelta, date
+from datetime import timedelta
 from dateutil.relativedelta import relativedelta
 import streamlit.components.v1 as components
 
 st.set_page_config(layout="wide")
 
-# --- Fuente Montserrat ---
+# --- Fuentes modernas Inter + Manrope ---
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Manrope:wght@600;700&display=swap');
+
     html, body, [class*="css"] {
-        font-family: 'Montserrat', sans-serif !important;
+        font-family: 'Inter', sans-serif;
     }
-    .css-1v3fvcr { font-weight: normal !important; } /* Asegura que el peso sea normal */
+
+    h1, .stTitle {
+        font-family: 'Manrope', sans-serif !important;
+        font-size: 28px !important;
+        font-weight: 700 !important;
+        margin-bottom: 0.5rem !important;
+    }
+
+    h2, .stSubtitle {
+        font-family: 'Manrope', sans-serif !important;
+        font-size: 18px !important;
+        font-weight: 600 !important;
+        margin-bottom: 0.5rem !important;
+    }
+
+    h3, h4, h5, h6 {
+        font-family: 'Manrope', sans-serif !important;
+        font-weight: 600 !important;
+        font-size: 16px !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
 st.title("📈 DEMANDA TOTAL Y QUIEBRES")
-st.subheader("VISUALIZACIÓN DE DEMANDA REAL/LIMPIA POR SKU, JUNTO CON UNIDADES PERDIDAS POR QUIEBRES DE STOCK")
+st.subheader("Demanda Real y Limpia por SKU")
 
 # --- Cargar demanda limpia desde session_state ---
 def cargar_demanda():
-    if 'demanda_limpia' in st.session_state:
-        return st.session_state['demanda_limpia']
-    else:
-        return pd.DataFrame()  # Si no hay datos, devolver un DataFrame vacío.
+    return st.session_state.get('demanda_limpia', pd.DataFrame())
 
 df = cargar_demanda()
 
@@ -43,22 +59,13 @@ df['semana'] = df['fecha'].dt.to_period('W').apply(lambda r: r.start_time)
 skus = sorted(df['sku'].unique())
 skus.insert(0, "TODOS")
 sku_seleccionado = st.selectbox("Selecciona un SKU", skus)
+df_filtrado = df if sku_seleccionado == "TODOS" else df[df['sku'] == sku_seleccionado]
 
-df_filtrado = df.copy() if sku_seleccionado == "TODOS" else df[df['sku'] == sku_seleccionado]
-
-# --- Filtro de fechas (últimos 24 meses por defecto) ---
+# --- Filtro de fechas ---
 fecha_min = df_filtrado['fecha'].min().date()
 fecha_max = df_filtrado['fecha'].max().date()
 fecha_min_defecto = max(fecha_min, (fecha_max - relativedelta(months=12)))
-
-rango_fecha = st.date_input(
-    "Selecciona el rango de fechas",
-    value=(fecha_min_defecto, fecha_max),
-    min_value=fecha_min,
-    max_value=fecha_max
-)
-
-# Aplicar filtro
+rango_fecha = st.date_input("Selecciona el rango de fechas", value=(fecha_min_defecto, fecha_max), min_value=fecha_min, max_value=fecha_max)
 fecha_inicio = pd.to_datetime(rango_fecha[0])
 fecha_fin = pd.to_datetime(rango_fecha[1])
 df_filtrado = df_filtrado[(df_filtrado['fecha'] >= fecha_inicio) & (df_filtrado['fecha'] <= fecha_fin)]
@@ -67,301 +74,116 @@ df_filtrado = df_filtrado[(df_filtrado['fecha'] >= fecha_inicio) & (df_filtrado[
 df_quiebre = df_filtrado.copy()
 df_quiebre['quiebre_stock'] = (df_quiebre['demanda'] == 0) & (df_quiebre['demanda_sin_outlier'] > 0)
 df_quiebre['semana'] = df_quiebre['fecha'].dt.to_period('W').dt.start_time
-
 total_semanas = df_quiebre['semana'].nunique()
 quiebre_semanas = df_quiebre[df_quiebre['quiebre_stock']].groupby('semana').ngroup().nunique()
 porcentaje_quiebre = round((quiebre_semanas / total_semanas) * 100, 1) if total_semanas > 0 else 0
-
-# --- Calcular total de unidades perdidas ---
-df_quiebre['unidades_perdidas'] = df_quiebre.apply(
-    lambda row: row['demanda_sin_outlier'] if row['quiebre_stock'] else 0, axis=1
-)
+df_quiebre['unidades_perdidas'] = df_quiebre.apply(lambda row: row['demanda_sin_outlier'] if row['quiebre_stock'] else 0, axis=1)
 total_unidades_perdidas = int(df_quiebre['unidades_perdidas'].sum())
-
-# --- Mostrar KPIs (ahora con 4 columnas) ---
-col1, col2, col3, col4 = st.columns(4)
-
-# Calcular valores como enteros
 demanda_real_total = int(df_filtrado['demanda'].sum())
 demanda_limpia_total = int(df_filtrado['demanda_sin_outlier'].sum())
-unidades_perdidas_total = int(total_unidades_perdidas)
 
-# Mostrar KPIs sin formateo que cause errores de idioma
-with col1:
-    st.metric("Demanda Real Total", f"{demanda_real_total} un.")
-with col2:
-    st.metric("Demanda Limpia Total", f"{demanda_limpia_total} un.")
-with col3:
-    st.metric("% Quiebre de Stock", f"{porcentaje_quiebre} %")
-with col4:
-    st.metric("Unidades Perdidas", f"{unidades_perdidas_total} un.")
+# --- KPIs con nuevo diseño ---
+kpi_template = """
+<div style="
+    background-color:#FAFAFA;
+    padding:16px;
+    border-radius:20px;
+    text-align:center;
+    height:120px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    margin: 4px;
+    box-shadow: 0px 2px 6px rgba(0,0,0,0.04);
+">
+    <div style="font-size:14px; font-weight:500; margin-bottom:6px;">{label}</div>
+    <div style="font-size:30px;">{value}</div>
+</div>
+"""
 
-# --- Gráfico de torta (irá debajo del gráfico semanal) ---
-fig_quiebre = go.Figure(data=[go.Pie(
-    labels=['Con Quiebre', 'Sin Quiebre'],
-    values=[quiebre_semanas, total_semanas - quiebre_semanas],
-    hole=0.4,
-    marker=dict(colors=['#EF553B', '#00CC96'])
-)])
-fig_quiebre.update_layout(
-    title_text=f'Quiebre de Stock - {sku_seleccionado}',
-    legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center", font=dict(family="Montserrat", size=12))
-)
+col1, col2, col3, col4 = st.columns(4)
+col1.markdown(kpi_template.format(label="Demanda Real Total", value=f"{demanda_real_total:,} un."), unsafe_allow_html=True)
+col2.markdown(kpi_template.format(label="Demanda Limpia Total", value=f"{demanda_limpia_total:,} un."), unsafe_allow_html=True)
+col3.markdown(kpi_template.format(label="% Quiebre de Stock", value=f"{porcentaje_quiebre} %"), unsafe_allow_html=True)
+col4.markdown(kpi_template.format(label="Unidades Perdidas", value=f"{total_unidades_perdidas:,} un."), unsafe_allow_html=True)
+st.markdown("<div style='margin-top: 24px;'></div>", unsafe_allow_html=True)
 
-# --- Funciones cacheadas para procesamiento ---
+# --- Función para títulos con fondo ---
+def titulo_con_fondo(texto):
+    return f"""
+    <div style="background-color:#F7F7F7; padding:0px 0px; border-radius:16px; width:100%; text-align:center;">
+        <h4 style="margin: 0; line-height: 1.5; font-weight: 700; font-size: 22px;">{texto}</h4>
+    </div>
+    """
+
+# --- Procesamiento de demanda ---
 @st.cache_data
 def procesar_demanda(df_filtrado):
-    # --- Semanal ---
-    df_semanal = df_filtrado.groupby('semana').agg({
-        'demanda': 'sum',
-        'demanda_sin_outlier': 'sum'
-    }).reset_index()
-
-    fig_semanal = px.line(
-        df_semanal,
-        x='semana',
-        y=['demanda', 'demanda_sin_outlier'],
-        labels={'value': 'Unidades', 'variable': 'Tipo de Demanda'},
-        title=f"Demanda Semanal - {sku_seleccionado}"
-    )
-    fig_semanal.update_layout(width=700, height=400)
+    df_semanal = df_filtrado.groupby('semana').agg({'demanda': 'sum','demanda_sin_outlier': 'sum'}).reset_index()
+    fig_semanal = px.line(df_semanal, x='semana', y=['demanda', 'demanda_sin_outlier'], labels={'value': 'Unidades', 'variable': 'Tipo de Demanda'})
     fig_semanal.for_each_trace(lambda t: t.update(name='Demanda Real') if t.name == 'demanda' else t.update(name='Demanda Limpia'))
-
-    # --- Mensual ---
     df_tmp = df_filtrado.copy()
     df_tmp['fecha_fin'] = df_tmp['fecha'] + timedelta(days=6)
     rows = []
-
     for _, row in df_tmp.iterrows():
         dias = pd.date_range(start=row['fecha'], end=row['fecha_fin'])
         meses = dias.to_series().dt.to_period('M').value_counts().sort_index()
-        total_dias = len(dias)
         for periodo, cantidad_dias in meses.items():
-            fraccion = cantidad_dias / total_dias
-            rows.append({
-                'mes': periodo.to_timestamp(),
-                'demanda': row['demanda'] * fraccion,
-                'demanda_sin_outlier': row['demanda_sin_outlier'] * fraccion
-            })
-
+            fraccion = cantidad_dias / len(dias)
+            rows.append({'mes': periodo.to_timestamp(),'demanda': row['demanda'] * fraccion,'demanda_sin_outlier': row['demanda_sin_outlier'] * fraccion})
     df_mensual = pd.DataFrame(rows).groupby('mes')[['demanda', 'demanda_sin_outlier']].sum().reset_index()
-
-    # --- Filtrar meses incompletos (al menos 2 semanas distintas) ---
     df_tmp['mes'] = df_tmp['fecha'].dt.to_period('M').dt.to_timestamp()
     df_tmp['semana'] = df_tmp['fecha'].dt.to_period('W').dt.start_time
     semanas_por_mes = df_tmp.groupby('mes')['semana'].nunique().reset_index()
     meses_completos = semanas_por_mes[semanas_por_mes['semana'] >= 2]['mes']
     df_mensual = df_mensual[df_mensual['mes'].isin(meses_completos)]
-
-    fig_mensual = px.line(
-        df_mensual,
-        x='mes',
-        y=['demanda', 'demanda_sin_outlier'],
-        labels={'value': 'Unidades', 'variable': 'Tipo de Demanda'},
-        title=f"Demanda Mensual - {sku_seleccionado}"
-    )
-    fig_mensual.update_layout(width=700, height=400)
+    fig_mensual = px.line(df_mensual, x='mes', y=['demanda', 'demanda_sin_outlier'], labels={'value': 'Unidades', 'variable': 'Tipo de Demanda'})
     fig_mensual.for_each_trace(lambda t: t.update(name='Demanda Real') if t.name == 'demanda' else t.update(name='Demanda Limpia'))
-
     return fig_semanal, fig_mensual
 
-# --- Procesar (cacheado) ---
 fig_semanal, fig_mensual = procesar_demanda(df_filtrado)
 
-# Ajustes visuales para centrar leyendas
-fig_semanal.update_layout(
-    title_text='',  # Esto evita que aparezca "undefined"
-    legend=dict(orientation="h", y=-0.3, x=0.5, xanchor="center")
-)
+# --- Mostrar gráficos en filas ---
+st.markdown(titulo_con_fondo(f"📅 Demanda Semanal - {sku_seleccionado}"), unsafe_allow_html=True)
+st.plotly_chart(fig_semanal, use_container_width=True)
+st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
 
-fig_mensual.update_layout(
-    title_text='',  # Esto evita que aparezca "undefined"
-    legend=dict(orientation="h", y=-0.3, x=0.5, xanchor="center")
-)
+st.markdown(titulo_con_fondo(f"📆 Demanda Mensual - {sku_seleccionado}"), unsafe_allow_html=True)
+st.plotly_chart(fig_mensual, use_container_width=True)
 
-fig_quiebre.update_layout(
-    title_text='',  # evitamos que aparezca "undefined"
-    legend=dict(
-        orientation="h",  # Hace que la leyenda sea horizontal
-        y=-0.4,  # Mueve la leyenda un poco más abajo
-        x=0.5,  # Centra la leyenda horizontalmente
-        xanchor="center",
-        font=dict(family="Montserrat", size=12)
-    ),
-    height=350,  # Ajusta el tamaño aquí según necesites
-    margin=dict(t=120)  # Puedes aumentar esto para mover el gráfico hacia abajo
-)
-
-# Títulos centrados como anotaciones
-fig_semanal.add_annotation(
-    text=f"Demanda Semanal - {sku_seleccionado}",
-    xref="paper", yref="paper",
-    x=0.5, y=1.15,
-    showarrow=False,
-    font=dict(size=16, family="Montserrat", color="black"),
-    align="center"
-)
-
-fig_mensual.add_annotation(
-    text=f"Demanda Mensual - {sku_seleccionado}",
-    xref="paper", yref="paper",
-    x=0.5, y=1.15,
-    showarrow=False,
-    font=dict(size=16, family="Montserrat", color="black"),
-    align="center"
-)
-
-fig_quiebre.add_annotation(
-    text="Quiebres de Stock",
-    xref="paper", yref="paper",
-    x=0.5, y=1.35,  # Ajusta esta parte para mover el título más abajo
-    showarrow=False,
-    font=dict(size=16, family="Montserrat", color="black"),
-    align="center"
-)
-
-# --- Mostrar los gráficos en 3 columnas (alineados) ---
-col1, col2, col3 = st.columns([1.15, 1.15, 1])
-
-with col1:
-    st.plotly_chart(fig_semanal, use_container_width=True)
-
-with col2:
-    st.plotly_chart(fig_mensual, use_container_width=True)
-
-with col3:
-    st.plotly_chart(fig_quiebre, use_container_width=True)
-
-# --- TOP 10 SKUs con mayor número de unidades perdidas por quiebre de stock ---
+# --- Top 10 pérdidas --- 
 df_quiebre_top = df_quiebre.copy()
-df_quiebre_top['unidades_perdidas'] = df_quiebre_top.apply(
-    lambda row: row['demanda_sin_outlier'] if row['quiebre_stock'] else 0, axis=1
-)
-
-resumen_quiebres = df_quiebre_top.groupby('sku').agg(
-    semanas_quiebre=('quiebre_stock', 'sum'),
-    semanas_totales=('semana', 'nunique'),
-    unidades_perdidas=('unidades_perdidas', 'sum')
-).reset_index()
-
-resumen_quiebres['porcentaje_quiebre'] = (
-    100 * resumen_quiebres['semanas_quiebre'] / resumen_quiebres['semanas_totales']
-).round(1)
-
-# Formatear columnas
+df_quiebre_top['unidades_perdidas'] = df_quiebre_top.apply(lambda row: row['demanda_sin_outlier'] if row['quiebre_stock'] else 0, axis=1)
+resumen_quiebres = df_quiebre_top.groupby('sku').agg(semanas_quiebre=('quiebre_stock', 'sum'), semanas_totales=('semana', 'nunique'), unidades_perdidas=('unidades_perdidas', 'sum')).reset_index()
+resumen_quiebres['porcentaje_quiebre'] = (100 * resumen_quiebres['semanas_quiebre'] / resumen_quiebres['semanas_totales']).round(1)
 resumen_quiebres['porcentaje_quiebre'] = resumen_quiebres['porcentaje_quiebre'].astype(str) + ' %'
 resumen_quiebres['unidades_perdidas'] = resumen_quiebres['unidades_perdidas'].astype(int)
-
-# Ordenar por unidades perdidas
 top10_quiebres = resumen_quiebres.sort_values(by='unidades_perdidas', ascending=False).head(10)
 
-# --- Unidades perdidas por mes --- 
-df_quiebre_top['fecha'] = pd.to_datetime(df_quiebre_top['fecha'])
-
-# Convertir las fechas a formato de periodo mensual y luego a timestamp
-df_quiebre_top['mes'] = df_quiebre_top['fecha'].dt.to_period('M').dt.to_timestamp()
-
-# Agrupar por mes y sumar las unidades perdidas
-unidades_perdidas_mes = df_quiebre_top[df_quiebre_top['quiebre_stock']].groupby('mes')['unidades_perdidas'].sum().reset_index()
-
-# Convertir unidades perdidas a enteros
-unidades_perdidas_mes['unidades_perdidas'] = unidades_perdidas_mes['unidades_perdidas'].astype(int)
-
-# Asegurarse de que 'mes' esté en formato adecuado para el gráfico
-unidades_perdidas_mes['mes'] = unidades_perdidas_mes['mes'].dt.strftime('%b %Y')
-
-# Crear el gráfico de barras con una clave única
-fig_barras = px.bar(
-    unidades_perdidas_mes,
-    x='mes',
-    y='unidades_perdidas',
-    labels={'mes': 'Mes', 'unidades_perdidas': 'Unidades Perdidas'},
-    text='unidades_perdidas'
-)
-
-fig_barras.update_layout(
-    title_text="<span style='font-weight:normal; font-size:16px; font-family: Montserrat; color:black;'>📉 Unidades Perdidas por Mes</span>",
-    title_x=0.4,  # Centrado del título
-    title_y=0.95,  # Ajustar la posición vertical
-    title_font=dict(
-        family="Montserrat",
-        size=16,
-        color="black",
-        weight="normal"  # Eliminamos el peso de la fuente
-    ),
-    font=dict(
-        family="Montserrat",
-        size=12,
-        color="black"
-    ),
-    height=420,  # Ajusta el valor de height aquí para cambiar la altura del gráfico
-	margin=dict(t=50)
-)
-
-fig_barras.update_traces(
-    marker_color='blue',
-    textposition='outside',
-    textfont=dict(family="Montserrat", size=12)
-)
-
-# --- HTML para tabla personalizada centrada y angosta ---
+# --- Tabla HTML personalizada ---
 tabla_html = """
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
 <style>
-.table-container {
-    font-family: 'Montserrat', sans-serif;
-    margin-top: 10px;
-}
-.table-title {
-    font-size: 16px;
-    font-weight: normal;
-    margin-bottom: 10px;
-    font-family: 'Montserrat', sans-serif;
-}
-.custom-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12px;
-    text-align: center;
-    font-family: 'Montserrat', sans-serif;
-}
-.custom-table th {
-    background-color: #f3f3f3;
-    padding: 6px;
-}
-.custom-table td {
-    padding: 6px;
-}
+.table-container { font-family: 'Inter', sans-serif; margin-top: 10px; }
+.table-title { font-size: 16px; font-weight: normal; margin-bottom: 10px; }
+.custom-table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: center; }
+.custom-table th { background-color: #f3f3f3; padding: 6px; }
+.custom-table td { padding: 6px; }
 </style>
 <div class="table-container">
   <div class="table-title">🔔 Top 10 SKUs con mayor número de unidades perdidas por quiebre de stock</div>
   <table class="custom-table">
     <thead>
-      <tr>
-        <th>SKU</th>
-        <th>% Quiebre</th>
-        <th>Unidades Perdidas</th>
-      </tr>
+      <tr><th>SKU</th><th>% Quiebre</th><th>Unidades Perdidas</th></tr>
     </thead>
     <tbody>
 """
-
 for _, row in top10_quiebres.iterrows():
-    tabla_html += f"""
-    <tr>
-        <td>{row['sku']}</td>
-        <td>{row['porcentaje_quiebre']}</td>
-        <td>{row['unidades_perdidas']:,}</td>
-    </tr>
-    """
-
+    tabla_html += f"<tr><td>{row['sku']}</td><td>{row['porcentaje_quiebre']}</td><td>{row['unidades_perdidas']:,}</td></tr>"
 tabla_html += "</tbody></table></div>"
 
-# --- Mostrar tabla y gráfico en 2 columnas ---
-col1, col2 = st.columns([1, 1.4])
+# --- Mostrar sección Top 10 con tabla --- 
+colA, colB = st.columns([1, 1.5])
+with colA:
+    components.html(tabla_html, height=380, scrolling=True)
 
-with col1:
-    components.html(tabla_html, height=500, scrolling=True)  # Se eliminó el parámetro 'key'
-
-with col2:
-    st.plotly_chart(fig_barras, use_container_width=True)  # Se muestra solo el gráfico una vez

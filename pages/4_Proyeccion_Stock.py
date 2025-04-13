@@ -6,14 +6,36 @@ from modules.stock_projector import project_stock
 # --- Estilos globales ---
 st.markdown("""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Manrope:wght@600;700&display=swap');
+
         html, body, [class*="css"] {
-            font-family: 'Montserrat', sans-serif !important;
+            font-family: 'Inter', sans-serif;
+        }
+
+        h1, .stTitle {
+            font-family: 'Manrope', sans-serif !important;
+            font-size: 28px !important;
+            font-weight: 700 !important;
+            margin-bottom: 0.5rem !important;
+        }
+
+        h2, .stSubtitle {
+            font-family: 'Manrope', sans-serif !important;
+            font-size: 18px !important;
+            font-weight: 600 !important;
+            margin-bottom: 0.5rem !important;
+        }
+
+        h3, h4, h5, h6 {
+            font-family: 'Manrope', sans-serif !important;
+            font-weight: 600 !important;
+            font-size: 16px !important;
         }
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h3 style='font-family: Montserrat;'>📦 Proyección de Stock Mensual</h3>", unsafe_allow_html=True)
+st.title("📦 PROYECCIÓN DE STOCK MENSUAL")
+st.subheader("Proyección de Stock por SKU y Análisis de Disponibilidad")
 
 # --- Validaciones ---
 if 'forecast' not in st.session_state or st.session_state['forecast'] is None:
@@ -44,7 +66,7 @@ fechas_disponibles = stock_info['fecha'].sort_values().dt.to_period('M').dt.to_t
 fecha_inicio = st.selectbox("Selecciona la fecha de stock inicial", fechas_disponibles)
 
 fila_stock = stock_info[stock_info['fecha'].dt.to_period('M').dt.to_timestamp() == fecha_inicio].iloc[0]
-descripcion = fila_stock.get('descripcion', '')
+descripcion = fila_stock.get('descripcion', 'N/A')
 stock_inicial = fila_stock['stock']
 
 # Obtener precio de venta desde el maestro
@@ -71,11 +93,20 @@ if df_resultado.empty:
     st.warning("⚠️ No se pudo generar la proyección. Revisa si el forecast contiene datos desde la fecha seleccionada.")
     st.stop()
 
+# --- Función para títulos con fondo --- 
+def titulo_con_fondo(texto):
+    return f"""
+    <div style="background-color:#F7F7F7; padding:0px 0px; border-radius:16px; width:100%; text-align:center;">
+        <h4 style="margin: 0; line-height: 1.5; font-weight: 700; font-size: 22px;">{texto}</h4>
+    </div>
+    """
+
 # --- Mostrar tabla completa ---
-st.subheader("📊 Tabla de proyección detallada")
+st.markdown(titulo_con_fondo("📊 Tabla de proyección detallada"), unsafe_allow_html=True)
 st.dataframe(df_resultado, use_container_width=True)
 
 # --- Gráfico de stock final del mes ---
+st.markdown(titulo_con_fondo("📉 Stock Proyectado al Final de Cada Mes"), unsafe_allow_html=True)
 fig_stock = go.Figure()
 fig_stock.add_trace(go.Scatter(
     x=df_resultado['mes'],
@@ -84,7 +115,6 @@ fig_stock.add_trace(go.Scatter(
     name='Stock Final'
 ))
 fig_stock.update_layout(
-    title="📉 Stock Proyectado al Final de Cada Mes",
     xaxis_title="Mes",
     yaxis_title="Unidades",
     height=420,
@@ -95,6 +125,7 @@ fig_stock.update_layout(
 st.plotly_chart(fig_stock, use_container_width=True)
 
 # --- Gráfico de pérdidas proyectadas en euros ---
+st.markdown(titulo_con_fondo("💸 Pérdida Proyectada por Quiebres de Stock (en €)"), unsafe_allow_html=True)
 fig_loss = go.Figure()
 fig_loss.add_trace(go.Bar(
     x=df_resultado['mes'],
@@ -102,7 +133,6 @@ fig_loss.add_trace(go.Bar(
     name="Pérdida proyectada (€)"
 ))
 fig_loss.update_layout(
-    title="💸 Pérdida Proyectada por Quiebres de Stock (en €)",
     xaxis_title="Mes",
     yaxis_title="Pérdida (€)",
     height=420,
@@ -111,8 +141,3 @@ fig_loss.update_layout(
     yaxis=dict(range=[0, max(df_resultado['perdida_proyectada_euros'].max(), 10)])
 )
 st.plotly_chart(fig_loss, use_container_width=True)
-
-
-
-
-

@@ -81,4 +81,3 @@ def consolidar_proyeccion_futura(df_forecast, df_stock, df_repos, df_maestro):
         df_final = df_final.merge(df_maestro, on='sku', how='left')
 
     return df_final
-
