@@ -3,3 +3,7 @@ plotly
 streamlit
 openpyxl
 xlsxwriter
+fastapi
+uvicorn
+python-multipart
+pydantic
