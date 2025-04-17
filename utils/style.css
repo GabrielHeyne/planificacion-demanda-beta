@@ -1,0 +1,199 @@
+/* CSS para la barra lateral */
+.stSidebar {
+    position: fixed; /* Fija la barra lateral */
+    top: 0;
+    left: 0;
+    width: 250px; /* Establece el ancho de la barra lateral */
+    height: 100vh; /* Asegura que la barra lateral tenga altura completa */
+    background-color: #ffffff; /* Fondo blanco para la barra lateral */
+    padding-top: 10px; /* Espacio arriba */
+    z-index: 1000; /* Asegura que el logo esté encima de otros elementos */
+    border-right: 1px solid #D0D0D0;  /* <-- Esta es la línea divisoria */
+}
+
+.stSidebar .sidebar-content {
+    padding: 1rem;
+}
+
+/* Agregar espacio al contenido principal para que no se superponga con la barra lateral */
+.stApp {
+    padding-left: 260px; /* Deja espacio para la barra lateral */
+}
+
+/* Logo en la barra lateral */
+.stSidebar img {
+    width: 200px; /* Ajusta el tamaño del logo */
+    margin-left: 10px; /* Alineación desde el borde izquierdo */
+}
+
+/* Logo en la parte superior */
+.stImage {
+    width: 100%; /* Ajusta el tamaño del logo */
+    height: auto;
+}
+
+/* Estilo global para las tarjetas */
+.card-module {
+    background-color: #ffffff; /* Fondo blanco */
+    border-radius: 12px; /* Bordes redondeados */
+    text-align: center; /* Centrado del texto */
+    height: 60px; /* Altura ajustada para las tarjetas */
+    padding: 16px; /* Espaciado interno */
+    margin-bottom: 10px; /* Separación entre tarjetas */
+    border: 1px solid #B0B0B0; /* Borde gris claro, más delgado */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    font-family: 'Poppins', sans-serif; /* Fuente más legible */
+    box-shadow: none; /* Eliminar sombra */
+}
+
+/* Estilo para el número dentro de las tarjetas */
+.card-module .value {
+    font-size: 36px; /* Tamaño grande para los números */
+    font-weight: 600; /* Peso de la fuente para destacarlos */
+}
+
+/* Estilo para el título de las tarjetas */
+.card-module .label {
+    font-size: 16px; /* Tamaño pequeño para el título */
+    font-weight: 500; /* Peso medio para el título */
+    margin-bottom: 6px; /* Separación entre el título y el número */
+}
+
+/* Efecto de hover sobre las tarjetas */
+.card-module:hover {
+    box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.2); /* Sombra más prominente al pasar el ratón */
+    transform: translateY(-4px); /* Efecto de elevación */
+}
+
+/* Estilo para los títulos de los gráficos */
+h4 {
+    font-family: 'Poppins', sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    margin: 10px 0;
+    text-align: center;
+}
+
+/* Estilo para los filtros (input select) */
+.stSelectbox, .stDateInput {
+    font-family: 'Poppins', sans-serif;
+    font-size: 14px;
+    padding: 8px;
+    border-radius: 8px;
+    border: 1px solid #B0B0B0;
+    margin-bottom: 20px;
+    width: 100%;
+    max-width: 300px; /* Asegura que los elementos no se expandan más allá del tamaño deseado */
+}
+
+/* Ajuste de fondo y bordes en los filtros */
+div.stSelectbox, div.stDateInput {
+    background-color: #ffffff !important;  /* Fondo blanco */
+    border: 1px solid #ccc !important;  /* Borde gris claro */
+    border-radius: 8px !important;  /* Bordes redondeados */
+    padding: 5px !important;  /* Espaciado interno */
+}
+
+/* Ajustar el fondo del texto de los selectbox y date_input cuando se selecciona un valor */
+div.stSelectbox > div, div.stDateInput > div {
+    background-color: #ffffff !important;  /* Fondo blanco */
+    color: #333 !important;  /* Color de texto oscuro */
+}
+
+/* Ajustar el tamaño y márgenes de los elementos de los filtros */
+div.stSelectbox, div.stDateInput {
+    margin-top: 0 !important;  /* Reducir espacio superior del filtro SKU y fechas */
+}
+
+
+/* Ajustes en las tarjetas de KPI para que tengan menos espacio entre ellas */
+div.stBlock > div {
+    margin-top: 0px !important;  /* Eliminar márgenes innecesarios */
+    padding-top: 5px !important;  /* Ajustar el padding superior */
+}
+
+/* Estilo para los filtros y botones */
+.stButton {
+    font-family: 'Poppins', sans-serif;
+    font-size: 14px;
+    padding: 8px;
+    border-radius: 8px;
+    border: 1px solid #D0D0D0;
+    background-color: #F7F7F7;
+    margin-top: 10px;
+}
+
+.stButton:hover {
+    background-color: #E0E0E0;
+    cursor: pointer;
+}
+
+/* Estilo para la parte de gráficos */
+.stContainer {
+    margin-top: 30px;
+    margin-bottom: 20px;
+}
+
+/* Títulos generales */
+h2 {
+    font-family: 'Poppins', sans-serif;
+    font-size: 24px;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 30px;
+}
+
+/* Filtros y botones */
+.stSelectbox, .stButton {
+    font-family: 'Poppins', sans-serif;
+    font-size: 14px;
+    padding: 8px;
+    border-radius: 8px;
+    border: 1px solid #D0D0D0;
+    background-color: #F7F7F7;
+    margin-top: 10px;
+}
+
+.stButton:hover {
+    background-color: #E0E0E0;
+    cursor: pointer;
+}
+
+/* Estilo para los títulos principales (por ejemplo, "Demanda Real y Limpia por SKU") */
+.titulo-principal {
+    font-family: 'Poppins', sans-serif;
+    font-size: 24px;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 30px;
+}
+
+/* Estilo para los subtítulos (por ejemplo, "Selecciona un SKU") */
+.subtitulo {
+    font-family: 'Poppins', sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: #555;
+    margin-top: 20px;
+}
+
+/* Estilo para los títulos con fondo */
+.titulo-con-fondo {
+    font-family: 'Poppins', sans-serif;
+    font-size: 22px;
+    font-weight: 100 !important; /* Asegúrate de que no se sobrescriba */
+    color: #333;
+    background-color: #F7F7F7;
+    padding: 10px;
+    text-align: center;
+    border-radius: 16px;
+    margin: 10px 0;
+}
+
+/* Línea suave separadora entre el menú lateral y el contenido */
+.sidebar {
+    border-right: 1px solid #ddd;  /* Color gris suave */
+    padding-right: 15px;  /* Espaciado adicional */
+}

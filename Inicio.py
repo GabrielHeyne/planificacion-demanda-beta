@@ -1,82 +1,52 @@
 import streamlit as st
+from PIL import Image
+import os
 
-# Configuración de la página
-st.set_page_config(
-    page_title="Herramienta de Planificación",
-    page_icon="📊",
-    layout="wide"
-)
+# --- Configuración de página ---
+st.set_page_config(page_title="Planity", layout="wide")
 
-# Estilos
-def set_custom_css():
-    st.markdown("""
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap');
+# --- Función para cargar CSS personalizado ---
+def load_css():
+    with open("utils/style.css") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-        html, body, [class*="css"] {
-            font-family: 'Montserrat', sans-serif !important;
-        }
+# Cargar los estilos
+load_css()
 
-        .block-container {
-            padding-top: 2.5rem;
-            padding-left: 3rem;
-            padding-right: 3rem;
-        }
+# --- Función para renderizar el logo en la barra lateral ---
+def render_logo_sidebar():
+    logo_path = os.path.join("planity_logo.png")  # Ruta del logo
+    image = Image.open(logo_path)
+    st.sidebar.image(image, use_container_width=True)
 
-        h1, h2, h3, h4, h5, h6, p, li, span, div {
-            font-family: 'Montserrat', sans-serif !important;
-        }
+# Llamar a la función para renderizar el logo en la barra lateral
+render_logo_sidebar()
 
-        /* Mostrar logo en la parte superior del sidebar */
-        [data-testid="stSidebar"]::before {
-            content: "";
-            display: block;
-            background-image: url('https://raw.githubusercontent.com/GabrielHeyne/planning-logo/main/logogh.png');
-            background-size: contain;
-            background-repeat: no-repeat;
-            background-position: top center;
-            height: 250px;  /* Aumentado el tamaño */
-            margin-bottom: 0px;
-        }
+# --- Banner superior ---
+banner_path = os.path.join("banner1.png")  # Ruta del banner
+st.image(banner_path, use_container_width=True)
 
-        /* Ocultar flecha de colapso del sidebar */
-        button[title="Collapse sidebar"] {
-            display: none;
-        }
+# --- Título y descripción ---
+st.markdown("""
+     <div class='main-title' style='margin-top: 10px;'>
+        <p>Planity es una plataforma inteligente para la planificación de demanda e inventarios. Diseñada para ayudarte a tomar decisiones estratégicas basadas en datos reales, Planity automatiza procesos clave y entrega insights accionables para optimizar tus operaciones.</p>
+    </div>
+""", unsafe_allow_html=True)
 
-        /* Aumentar el espacio entre el logo y el menú lateral */
-        [data-testid="stSidebarNav"] {
-            margin-top: 0px;
-        }
-    </style>
-    """, unsafe_allow_html=True)
+# --- Módulos / Funcionalidades en 2 columnas reales ---
+col1, col2 = st.columns(2)
 
-set_custom_css()
+with col1:
+    st.markdown("<div class='card-module'>✅ Limpieza de Demanda</div>", unsafe_allow_html=True)
+    st.markdown("<div class='card-module'>📦 Políticas de Inventario eficientes</div>", unsafe_allow_html=True)
+    st.markdown("<div class='card-module'>🧪 Simulación de escenarios</div>", unsafe_allow_html=True)
+    st.markdown("<div class='card-module'>📈 Paneles interactivos con KPIs</div>", unsafe_allow_html=True)
 
-# Título principal y subtítulo
-st.markdown('<h2 style="text-transform: uppercase;">Herramienta de Planificación</h2>', unsafe_allow_html=True)
-st.markdown("#### Lleva tu negocio al siguiente nivel")
-st.markdown("Esta aplicación te ayudará a:")
+with col2:
+    st.markdown("<div class='card-module'>📊 Forecast automático por SKU</div>", unsafe_allow_html=True)
+    st.markdown("<div class='card-module'>📉 Proyección de stock y pérdidas</div>", unsafe_allow_html=True)
+    st.markdown("<div class='card-module'>🛒 Definición de compras</div>", unsafe_allow_html=True)
 
-# Sección de funciones con íconos alineados verticalmente
-def render_icon_text(icon_path, text):
-    cols = st.columns([0.05, 0.95])
-    with cols[0]:
-        st.image(icon_path, width=40)
-    with cols[1]:
-        st.markdown(
-            f'<div style="display: flex; align-items: center; height: 42px;"><strong>{text}</strong></div>',
-            unsafe_allow_html=True
-        )
-
-render_icon_text("1_clean.png", "Limpiar la demanda de forma automática.")
-render_icon_text("2_cargar.png", "Cargar y visualizar tus datos.")
-render_icon_text("3_forecast.png", "Generar forecast por producto.")
-render_icon_text("4_analizar.png", "Analizar patrones y detectar quiebres futuros.")
-
-# Cierre
-st.markdown("Usa el menú lateral para navegar entre las secciones disponibles.")
-st.markdown("---")
-st.markdown("Desarrollado por [Tu Consultora]. Versión MVP 1.0 🚀")
-
+# --- Nota de navegación ---
+st.markdown("<p style='text-align:center; margin-top:2rem;'>Usa el menú lateral izquierdo para navegar por los módulos.</p>", unsafe_allow_html=True) 
 

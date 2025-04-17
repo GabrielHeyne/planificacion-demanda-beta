@@ -1,61 +1,20 @@
 import pandas as pd
 import streamlit as st
+from utils import render_logo_sidebar  # Importa la función desde utils.py
 import os
 from pandas import ExcelWriter
 from modules.demand_cleaner import clean_demand
 
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Manrope:wght@600;700&display=swap');
+# Cargar CSS
+def load_css():
+    with open("utils/style.css") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-html, body, [class*="css"] {
-    font-family: 'Inter', sans-serif !important;
-    background-color: #fafafa;
-}
+# Cargar el CSS
+load_css()
 
-h1, h2, h3, h4, h5, h6, .stMarkdown h2, .stMarkdown h3 {
-    font-family: 'Manrope', sans-serif !important;
-    font-weight: 700 !important;
-    font-size: 18px !important;
-    color: #222 !important;
-}
-
-.block-container {
-    padding-top: 1.2rem !important;
-    padding-bottom: 1.5rem !important;
-}
-
-.section-title {
-    font-size: 18px;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 18px;
-    margin-bottom: 6px;
-    font-family: 'Manrope', sans-serif !important;
-}
-
-/* ✅ TEXTO dentro de la caja blanca */
-.stFileUploader > label {
-    display: block;
-    padding: 10px 16px 4px;
-    font-size: 13px;
-    color: #666;
-    font-family: 'Inter', sans-serif' !important;
-}
-
-/* ✅ Caja del uploader */
-.stFileUploader {
-    margin-top: 0px !important;
-    border-radius: 10px !important;
-    box-shadow: 0 1px 6px rgba(0,0,0,0.04) !important;
-    padding-bottom: 2px !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
-
+# Llamar a la función para renderizar el logo en la barra lateral
+render_logo_sidebar()  # Este es el cambio para mostrar el logo
 
 
 # --- Inicializar session_state ---

@@ -1,26 +1,21 @@
 import streamlit as st
+from utils import render_logo_sidebar  # Importa la función desde utils.py
 import pandas as pd
 import numpy as np
 from datetime import date
 import plotly.graph_objects as go
 from modules.forecast_engine import forecast_simple
 
-# Fuente moderna Inter + Manrope
-st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Manrope:wght@600;700&display=swap');
+# Cargar CSS
+def load_css():
+    with open("utils/style.css") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-    html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif;
-    }
+# Cargar el CSS
+load_css()
 
-    h1, h2, h3, h4, h5, h6, .stMarkdown h2, .stMarkdown h3 {
-        font-family: 'Manrope', sans-serif !important;
-        font-weight: 700 !important;
-        font-size: 18px !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
+# Llamar a la función para renderizar el logo en la barra lateral
+render_logo_sidebar()  # Este es el cambio para mostrar el logo
 
 # Verificar si la demanda está cargada
 if 'demanda_limpia' not in st.session_state:

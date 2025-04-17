@@ -1,4 +1,5 @@
 import streamlit as st
+from utils import render_logo_sidebar  # Importa la función desde utils.py
 import pandas as pd
 import plotly.express as px
 from datetime import timedelta
@@ -7,41 +8,23 @@ import streamlit.components.v1 as components
 
 st.set_page_config(layout="wide")
 
-# --- Fuentes modernas Inter + Manrope ---
-st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Manrope:wght@600;700&display=swap');
+# Cargar CSS
+def load_css():
+    with open("utils/style.css") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-    html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif;
-    }
+# Cargar el CSS
+load_css()
 
-    h1, .stTitle {
-        font-family: 'Manrope', sans-serif !important;
-        font-size: 28px !important;
-        font-weight: 700 !important;
-        margin-bottom: 0.5rem !important;
-    }
+# Llamar a la función para renderizar el logo en la barra lateral
+render_logo_sidebar()  # Este es el cambio para mostrar el logo
 
-    h2, .stSubtitle {
-        font-family: 'Manrope', sans-serif !important;
-        font-size: 18px !important;
-        font-weight: 600 !important;
-        margin-bottom: 0.5rem !important;
-    }
-
-    h3, h4, h5, h6 {
-        font-family: 'Manrope', sans-serif !important;
-        font-weight: 600 !important;
-        font-size: 16px !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-st.title("📈 DEMANDA TOTAL Y QUIEBRES")
-st.subheader("Demanda Real y Limpia por SKU")
+# Usar las clases CSS para los títulos
+st.markdown('<h1 class="titulo-principal">📈 DEMANDA TOTAL Y QUIEBRES</h1>', unsafe_allow_html=True)
+st.markdown('<h2 class="subtitulo">Demanda Real y Limpia por SKU</h2>', unsafe_allow_html=True)
 
 # --- Cargar demanda limpia desde session_state ---
+@st.cache_data
 def cargar_demanda():
     return st.session_state.get('demanda_limpia', pd.DataFrame())
 
@@ -70,13 +53,25 @@ fecha_inicio = pd.to_datetime(rango_fecha[0])
 fecha_fin = pd.to_datetime(rango_fecha[1])
 df_filtrado = df_filtrado[(df_filtrado['fecha'] >= fecha_inicio) & (df_filtrado['fecha'] <= fecha_fin)]
 
-# --- KPIs y quiebres ---
+# --- KPIs y quiebres --- 
 df_quiebre = df_filtrado.copy()
+
+# Calcular el quiebre de stock por cada SKU
 df_quiebre['quiebre_stock'] = (df_quiebre['demanda'] == 0) & (df_quiebre['demanda_sin_outlier'] > 0)
-df_quiebre['semana'] = df_quiebre['fecha'].dt.to_period('W').dt.start_time
-total_semanas = df_quiebre['semana'].nunique()
-quiebre_semanas = df_quiebre[df_quiebre['quiebre_stock']].groupby('semana').ngroup().nunique()
-porcentaje_quiebre = round((quiebre_semanas / total_semanas) * 100, 1) if total_semanas > 0 else 0
+
+# Si el filtro es "TODOS", calculamos el porcentaje promedio de quiebre de todos los SKUs
+if sku_seleccionado == "TODOS":
+    # Para cada SKU, calculamos el porcentaje de quiebre
+    quiebre_por_sku = df_quiebre.groupby('sku').apply(lambda x: (x['quiebre_stock'].sum() / len(x)) * 100)
+    # Promediamos el porcentaje de quiebre de todos los SKUs y limitamos a un decimal
+    porcentaje_quiebre = round(quiebre_por_sku.mean(), 1)
+else:
+    # Cuando no se selecciona "TODOS", calculamos el porcentaje de quiebre solo para el SKU seleccionado
+    total_semanas = df_quiebre['semana'].nunique()
+    quiebre_semanas = df_quiebre[df_quiebre['quiebre_stock']].groupby('semana').ngroup().nunique()
+    porcentaje_quiebre = round((quiebre_semanas / total_semanas) * 100, 1) if total_semanas > 0 else 0
+
+# Calcular unidades perdidas
 df_quiebre['unidades_perdidas'] = df_quiebre.apply(lambda row: row['demanda_sin_outlier'] if row['quiebre_stock'] else 0, axis=1)
 total_unidades_perdidas = int(df_quiebre['unidades_perdidas'].sum())
 demanda_real_total = int(df_filtrado['demanda'].sum())
@@ -85,17 +80,18 @@ demanda_limpia_total = int(df_filtrado['demanda_sin_outlier'].sum())
 # --- KPIs con nuevo diseño ---
 kpi_template = """
 <div style="
-    background-color:#FAFAFA;
-    padding:16px;
-    border-radius:20px;
-    text-align:center;
-    height:120px;
-    display:flex;
-    flex-direction:column;
-    justify-content:center;
-    margin: 4px;
-    box-shadow: 0px 2px 6px rgba(0,0,0,0.04);
-">
+        background-color:#ffffff;
+        padding:16px;
+        border-radius:12px;
+        text-align:center;
+        height:110px;
+        display:flex;
+        flex-direction:column;
+        justify-content:space-between;
+        margin: 10px;
+        border: 1px solid #B0B0B0;
+        box-shadow: none; /* Sin sombra */
+    ">
     <div style="font-size:14px; font-weight:500; margin-bottom:6px;">{label}</div>
     <div style="font-size:30px;">{value}</div>
 </div>
@@ -112,7 +108,7 @@ st.markdown("<div style='margin-top: 24px;'></div>", unsafe_allow_html=True)
 def titulo_con_fondo(texto):
     return f"""
     <div style="background-color:#F7F7F7; padding:0px 0px; border-radius:16px; width:100%; text-align:center;">
-        <h4 style="margin: 0; line-height: 1.5; font-weight: 700; font-size: 22px;">{texto}</h4>
+        <h4 style="margin: 0; line-height: 1.5; font-weight: 400; font-size: 22px;">{texto}</h4>
     </div>
     """
 
@@ -132,11 +128,6 @@ def procesar_demanda(df_filtrado):
             fraccion = cantidad_dias / len(dias)
             rows.append({'mes': periodo.to_timestamp(),'demanda': row['demanda'] * fraccion,'demanda_sin_outlier': row['demanda_sin_outlier'] * fraccion})
     df_mensual = pd.DataFrame(rows).groupby('mes')[['demanda', 'demanda_sin_outlier']].sum().reset_index()
-    df_tmp['mes'] = df_tmp['fecha'].dt.to_period('M').dt.to_timestamp()
-    df_tmp['semana'] = df_tmp['fecha'].dt.to_period('W').dt.start_time
-    semanas_por_mes = df_tmp.groupby('mes')['semana'].nunique().reset_index()
-    meses_completos = semanas_por_mes[semanas_por_mes['semana'] >= 2]['mes']
-    df_mensual = df_mensual[df_mensual['mes'].isin(meses_completos)]
     fig_mensual = px.line(df_mensual, x='mes', y=['demanda', 'demanda_sin_outlier'], labels={'value': 'Unidades', 'variable': 'Tipo de Demanda'})
     fig_mensual.for_each_trace(lambda t: t.update(name='Demanda Real') if t.name == 'demanda' else t.update(name='Demanda Limpia'))
     return fig_semanal, fig_mensual
@@ -150,40 +141,3 @@ st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
 
 st.markdown(titulo_con_fondo(f"📆 Demanda Mensual - {sku_seleccionado}"), unsafe_allow_html=True)
 st.plotly_chart(fig_mensual, use_container_width=True)
-
-# --- Top 10 pérdidas --- 
-df_quiebre_top = df_quiebre.copy()
-df_quiebre_top['unidades_perdidas'] = df_quiebre_top.apply(lambda row: row['demanda_sin_outlier'] if row['quiebre_stock'] else 0, axis=1)
-resumen_quiebres = df_quiebre_top.groupby('sku').agg(semanas_quiebre=('quiebre_stock', 'sum'), semanas_totales=('semana', 'nunique'), unidades_perdidas=('unidades_perdidas', 'sum')).reset_index()
-resumen_quiebres['porcentaje_quiebre'] = (100 * resumen_quiebres['semanas_quiebre'] / resumen_quiebres['semanas_totales']).round(1)
-resumen_quiebres['porcentaje_quiebre'] = resumen_quiebres['porcentaje_quiebre'].astype(str) + ' %'
-resumen_quiebres['unidades_perdidas'] = resumen_quiebres['unidades_perdidas'].astype(int)
-top10_quiebres = resumen_quiebres.sort_values(by='unidades_perdidas', ascending=False).head(10)
-
-# --- Tabla HTML personalizada ---
-tabla_html = """
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-<style>
-.table-container { font-family: 'Inter', sans-serif; margin-top: 10px; }
-.table-title { font-size: 16px; font-weight: normal; margin-bottom: 10px; }
-.custom-table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: center; }
-.custom-table th { background-color: #f3f3f3; padding: 6px; }
-.custom-table td { padding: 6px; }
-</style>
-<div class="table-container">
-  <div class="table-title">🔔 Top 10 SKUs con mayor número de unidades perdidas por quiebre de stock</div>
-  <table class="custom-table">
-    <thead>
-      <tr><th>SKU</th><th>% Quiebre</th><th>Unidades Perdidas</th></tr>
-    </thead>
-    <tbody>
-"""
-for _, row in top10_quiebres.iterrows():
-    tabla_html += f"<tr><td>{row['sku']}</td><td>{row['porcentaje_quiebre']}</td><td>{row['unidades_perdidas']:,}</td></tr>"
-tabla_html += "</tbody></table></div>"
-
-# --- Mostrar sección Top 10 con tabla --- 
-colA, colB = st.columns([1, 1.5])
-with colA:
-    components.html(tabla_html, height=380, scrolling=True)
-
