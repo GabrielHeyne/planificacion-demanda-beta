@@ -1,9 +1,8 @@
 import streamlit as st
-from utils import render_logo_sidebar  # Importa la función desde utils.py
 import pandas as pd
-import numpy as np
-from datetime import date
 import plotly.graph_objects as go
+from datetime import timedelta
+from dateutil.relativedelta import relativedelta
 from modules.forecast_engine import forecast_simple
 
 # Cargar CSS
@@ -14,8 +13,12 @@ def load_css():
 # Cargar el CSS
 load_css()
 
-# Llamar a la función para renderizar el logo en la barra lateral
-render_logo_sidebar()  # Este es el cambio para mostrar el logo
+# Render logo
+from utils import render_logo_sidebar  
+render_logo_sidebar()
+
+st.markdown('<h1 style="font-size: 26px; margin-bottom: 2px; font-weight: 500;">FORECAST DE DEMANDA POR SKU</h1>', unsafe_allow_html=True)
+
 
 # Verificar si la demanda está cargada
 if 'demanda_limpia' not in st.session_state:
@@ -37,45 +40,65 @@ else:
     df_filtrado = df_forecast[df_forecast['sku'] == sku_seleccionado].copy()
     df_filtrado['mes'] = pd.to_datetime(df_filtrado['mes'], format='%Y-%m')
 
+    # Calcular Demanda Promedio (Últimos 6 meses móviles)
+    ultimo_mes_con_demandas = df_filtrado[df_filtrado['demanda'] > 0]['mes'].max()  # Último mes con demanda
+
+    # Filtramos los últimos 6 meses antes del último mes con demanda
+    df_ultimos_6_meses = df_filtrado[df_filtrado['mes'] <= ultimo_mes_con_demandas].tail(6)
+
+    # Calcular el promedio de demanda de esos meses
+    if len(df_ultimos_6_meses) > 0:
+        demanda_promedio_6 = df_ultimos_6_meses['demanda'].mean()
+    else:
+        demanda_promedio_6 = 0.0  # Si no hay datos, asignamos 0
+
+    # Redondear la demanda promedio a 1 decimal
+    demanda_promedio_6 = round(demanda_promedio_6, 1)
+
+    # Forecast Proyectado (redondeado)
+    forecast_proyectado = df_filtrado['forecast'].mean()
+    forecast_proyectado = round(forecast_proyectado, 1)
+
     # Calcular DPA resumen basado solo en meses tipo backtest
     df_backtest = df_filtrado[df_filtrado['tipo_mes'] == 'backtest'].sort_values('mes')
     dpa_valores = df_backtest['dpa_movil'].dropna()
 
     if not dpa_valores.empty:
         dpa_resumen = dpa_valores.iloc[-3:].mean()
-        st.metric("📈 DPA móvil (últimos meses de backtest)", f"{dpa_resumen:.1%}")
+        dpa_resumen = round(dpa_resumen, 3)  # Redondear el DPA a 3 decimales
     else:
-        st.metric("📈 DPA móvil (últimos meses de backtest)", "–")
+        dpa_resumen = "–"  # Si no hay datos, mostrar guion
 
-    # Rango de fechas
-    mes_mas_reciente = df_filtrado['mes'].max()
-    fecha_inicio_default = mes_mas_reciente - pd.DateOffset(months=17)
+    # Mostrar los KPIs en tarjetas
+    kpi_template = """
+    <div style="
+            background-color:#ffffff;
+            padding:16px;
+            border-radius:12px;
+            text-align:center;
+            height:110px;
+            display:flex;
+            flex-direction:column;
+            justify-content:space-between;
+            margin: 10px;
+            border: 1px solid #B0B0B0;
+            box-shadow: none;
+        ">
+        <div style="font-size:14px; font-weight:500; margin-bottom:6px;">{label}</div>
+        <div style="font-size:30px;">{value}</div>
+    </div>
+    """
 
-    min_date = df_filtrado['mes'].min().date()
-    max_date = df_filtrado['mes'].max().date()
-    start_date = fecha_inicio_default.date()
-    end_date = mes_mas_reciente.date()
+    col1, col2, col3 = st.columns(3)
 
-    st.markdown("#### Filtra por rango de fechas")
-    rango_fechas = st.date_input(
-        "Selecciona el rango de meses",
-        value=(start_date, end_date),
-        min_value=min_date,
-        max_value=max_date
-    )
+    # Mostrar Demanda Promedio
+    col1.markdown(kpi_template.format(label="Demanda Promedio (Últimos 6 meses)", value=f"{demanda_promedio_6} unidades"), unsafe_allow_html=True)
 
-    df_filtrado = df_filtrado[
-        (df_filtrado['mes'] >= pd.to_datetime(rango_fechas[0])) &
-        (df_filtrado['mes'] <= pd.to_datetime(rango_fechas[1]))
-    ]
+    # Mostrar Forecast Proyectado
+    col2.markdown(kpi_template.format(label="Forecast Proyectado", value=f"{forecast_proyectado} unidades"), unsafe_allow_html=True)
 
-    # Botón de descarga
-    st.download_button(
-        label="📥 Descargar Forecast Calculado",
-        data=df_forecast.to_csv(index=False).encode('utf-8'),
-        file_name="forecast.csv",
-        mime="text/csv"
-    )
+    # Mostrar DPA móvil
+    col3.markdown(kpi_template.format(label="DPA Móvil (Últimos meses de Backtest)", value=f"{dpa_resumen:.1%}" if isinstance(dpa_resumen, float) else dpa_resumen), unsafe_allow_html=True)
 
     # -------- GRÁFICO --------
     df_plot = df_filtrado.sort_values('mes')
@@ -113,13 +136,21 @@ else:
         xaxis_title='Mes',
         yaxis_title='Unidades',
         legend_title='Tipo',
-        font_family='Montserrat',
+        font_family='Poppins, sans-serif',  # Fuente del gráfico
         uniformtext_minsize=8,
         uniformtext_mode='hide',
-        xaxis_tickangle=45
+        xaxis_tickangle=45,
+        legend=dict(
+            orientation='h',  # Esto pone la leyenda de manera horizontal
+            yanchor='bottom',  # Pone la leyenda arriba
+            y=1.05,  # Un pequeño ajuste para mover la leyenda por encima del gráfico
+            xanchor='center',  # Centra la leyenda horizontalmente
+            x=0.5
+        )
     )
 
-    st.subheader(f"📊 Gráfico: Demanda Histórica y Forecast para SKU: {sku_seleccionado}")
+    # Título para el gráfico con el SKU seleccionado, centrado
+    st.markdown(f'<h1 style="font-size: 22px; margin-bottom: 2px; font-weight: 400; text-align: center;">📊 Gráfico: Demanda Histórica y Forecast para SKU: {sku_seleccionado}</h1>', unsafe_allow_html=True)
     st.plotly_chart(fig, use_container_width=True)
 
     # -------- TABLA DETALLE --------
@@ -132,3 +163,24 @@ else:
     st.subheader(f"📋 Detalle del Forecast para SKU: {sku_seleccionado}")
     st.dataframe(df_tabla)
 
+    # --- Crear archivo CSV para descarga ---
+    def generar_csv(df_forecast):
+        df_forecast = df_forecast.copy()
+        df_forecast['forecast'] = df_forecast['forecast'].round(0)
+        
+        # Selección de las columnas relevantes
+        df_export = df_forecast[['sku', 'mes', 'demanda', 'demanda_limpia', 'forecast', 'dpa_movil']]
+        df_export.columns = ['SKU', 'Mes', 'Demanda Real', 'Demanda Limpia', 'Forecast', 'DPA Móvil']
+        
+        # Convertir el dataframe a un archivo CSV
+        csv = df_export.to_csv(index=False).encode('utf-8')
+        return csv
+
+    # --- Botón para descargar el CSV ---
+    csv = generar_csv(df_forecast)
+    st.download_button(
+        label="📥 Descargar Forecast Calculado",
+        data=csv,
+        file_name="forecast.csv",
+        mime="text/csv"
+    )

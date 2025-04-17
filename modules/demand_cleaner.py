@@ -60,6 +60,10 @@ def clean_demand(demand_df):
 
         demand_df.loc[demand_df['sku'] == sku, 'demanda_sin_outlier'] = demanda_sin_outlier
 
+    # Redondear los valores de demanda sin outlier y demanda sin stockout
+    demand_df['demanda_sin_stockout'] = demand_df['demanda_sin_stockout'].apply(lambda x: round(x) if pd.notnull(x) else 0)
+    demand_df['demanda_sin_outlier'] = demand_df['demanda_sin_outlier'].apply(lambda x: round(x) if pd.notnull(x) else 0)
+
     return demand_df
 
 # Ejecutar limpieza cuando se suba archivo
@@ -69,4 +73,6 @@ if archivo_demanda is not None:
 
     st.subheader("Demanda limpia")
     st.dataframe(df_limpio[['sku', 'fecha', 'demanda', 'demanda_sin_stockout', 'demanda_sin_outlier']])
+
+
 

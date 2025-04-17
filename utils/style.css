@@ -37,9 +37,9 @@
     background-color: #ffffff; /* Fondo blanco */
     border-radius: 12px; /* Bordes redondeados */
     text-align: center; /* Centrado del texto */
-    height: 60px; /* Altura ajustada para las tarjetas */
+    height: 50px; /* Altura ajustada para las tarjetas */
     padding: 16px; /* Espaciado interno */
-    margin-bottom: 10px; /* Separación entre tarjetas */
+    margin-bottom: 7px; /* Separación entre tarjetas */
     border: 1px solid #B0B0B0; /* Borde gris claro, más delgado */
     display: flex;
     flex-direction: column;
@@ -50,13 +50,13 @@
 
 /* Estilo para el número dentro de las tarjetas */
 .card-module .value {
-    font-size: 36px; /* Tamaño grande para los números */
+    font-size: 27px; /* Tamaño grande para los números */
     font-weight: 600; /* Peso de la fuente para destacarlos */
 }
 
 /* Estilo para el título de las tarjetas */
 .card-module .label {
-    font-size: 16px; /* Tamaño pequeño para el título */
+    font-size: 14px; /* Tamaño pequeño para el título */
     font-weight: 500; /* Peso medio para el título */
     margin-bottom: 6px; /* Separación entre el título y el número */
 }
@@ -70,8 +70,8 @@
 /* Estilo para los títulos de los gráficos */
 h4 {
     font-family: 'Poppins', sans-serif;
-    font-size: 18px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 300;
     margin: 10px 0;
     text-align: center;
 }
@@ -79,7 +79,7 @@ h4 {
 /* Estilo para los filtros (input select) */
 .stSelectbox, .stDateInput {
     font-family: 'Poppins', sans-serif;
-    font-size: 14px;
+    font-size: 9px;
     padding: 8px;
     border-radius: 8px;
     border: 1px solid #B0B0B0;
@@ -117,7 +117,7 @@ div.stBlock > div {
 /* Estilo para los filtros y botones */
 .stButton {
     font-family: 'Poppins', sans-serif;
-    font-size: 14px;
+    font-size: 9px;
     padding: 8px;
     border-radius: 8px;
     border: 1px solid #D0D0D0;
@@ -139,7 +139,7 @@ div.stBlock > div {
 /* Títulos generales */
 h2 {
     font-family: 'Poppins', sans-serif;
-    font-size: 24px;
+    font-size: 17px;
     font-weight: 700;
     color: #333;
     margin-bottom: 30px;
@@ -148,7 +148,7 @@ h2 {
 /* Filtros y botones */
 .stSelectbox, .stButton {
     font-family: 'Poppins', sans-serif;
-    font-size: 14px;
+    font-size: 10px;
     padding: 8px;
     border-radius: 8px;
     border: 1px solid #D0D0D0;
@@ -164,8 +164,8 @@ h2 {
 /* Estilo para los títulos principales (por ejemplo, "Demanda Real y Limpia por SKU") */
 .titulo-principal {
     font-family: 'Poppins', sans-serif;
-    font-size: 24px;
-    font-weight: 700;
+    font-size: 17px;
+    font-weight: 400;
     color: #333;
     margin-bottom: 30px;
 }
@@ -173,7 +173,7 @@ h2 {
 /* Estilo para los subtítulos (por ejemplo, "Selecciona un SKU") */
 .subtitulo {
     font-family: 'Poppins', sans-serif;
-    font-size: 18px;
+    font-size: 13px;
     font-weight: 600;
     color: #555;
     margin-top: 20px;
@@ -182,14 +182,14 @@ h2 {
 /* Estilo para los títulos con fondo */
 .titulo-con-fondo {
     font-family: 'Poppins', sans-serif;
-    font-size: 22px;
-    font-weight: 100 !important; /* Asegúrate de que no se sobrescriba */
+    font-size: 15px;
+    font-weight: 400 !important; /* Asegúrate de que no se sobrescriba */
     color: #333;
-    background-color: #F7F7F7;
+    background-color: #FFFFFF;
     padding: 10px;
     text-align: center;
     border-radius: 16px;
-    margin: 10px 0;
+    margin: 0;
 }
 
 /* Línea suave separadora entre el menú lateral y el contenido */

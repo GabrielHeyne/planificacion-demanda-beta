@@ -122,7 +122,8 @@ kpi_style = """
         padding:16px;
         border-radius:12px;
         text-align:center;
-        height:110px;
+        height:90px;
+        width: 100%;
         display:flex;
         flex-direction:column;
         justify-content:space-between;
@@ -130,10 +131,10 @@ kpi_style = """
         border: 1px solid #B0B0B0;
         box-shadow: none; /* Sin sombra */
     ">
-        <div style="font-size:18px; font-weight:500; height:36px; display:flex; align-items:center; justify-content:center; gap:6px;">
+        <div style="font-size:13px; font-weight:500; height:36px; display:flex; align-items:center; justify-content:center; gap:6px;">
             {label}
         </div>
-        <div style="font-size:36px; font-weight:400;">{value}</div>  <!-- Aumentar tamaño de letra y quitar negritas en el valor -->
+        <div style="font-size:30px; font-weight:400;">{value}</div>  <!-- Aumentar tamaño de letra y quitar negritas en el valor -->
     </div>
 """
 
@@ -256,38 +257,52 @@ colg1, colg2 = st.columns(2)
 
 with colg1:
     with st.container():
-        st.markdown("""<div style="background-color:#F7F7F7; padding:0px 0px; border-radius:16px; width:100%; text-align:center;">
-                        <h4>📈 Demanda Real vs Limpia</h4></div>""", unsafe_allow_html=True)
+        st.markdown("""
+            <div class="titulo-con-fondo">
+                📈 Demanda Real vs Limpia
+            </div>
+        """, unsafe_allow_html=True)
         st.plotly_chart(fig_demand, use_container_width=True)
 
 with colg2:
     with st.container():
-        st.markdown("""<div style="background-color:#F7F7F7; padding:0px 0px; border-radius:16px; width:100%; text-align:center;">
-                        <h4>📈 Demanda vs Forecast</h4></div>""", unsafe_allow_html=True)
+        st.markdown("""
+            <div class="titulo-con-fondo">
+                📈 Demanda vs Forecast
+            </div>
+        """, unsafe_allow_html=True)
         st.plotly_chart(fig_mix, use_container_width=True)
 
 colg3, colg4 = st.columns(2)
 
 with colg3:
     with st.container():
-        st.markdown("""<div style="background-color:#F7F7F7; padding:0px 0px; border-radius:16px; width:100%; text-align:center;">
-                        <h4>📦 Stock Histórico Mensual</h4></div>""", unsafe_allow_html=True)
+        st.markdown("""
+            <div class="titulo-con-fondo">
+                📦 Stock Histórico Mensual
+            </div>
+        """, unsafe_allow_html=True)
         st.plotly_chart(fig_stock, use_container_width=True)
 
 with colg4:
     with st.container():
-        st.markdown("""<div style="background-color:#F7F7F7; padding:0px 0px; border-radius:16px; width:100%; text-align:center;">
-                        <h4>📦 Stock Proyectado vs Pérdida Estimada (€)</h4></div>""", unsafe_allow_html=True)
+        st.markdown("""
+            <div class="titulo-con-fondo">
+                📦 Stock Proyectado vs Pérdida Estimada (€)
+            </div>
+        """, unsafe_allow_html=True)
         st.plotly_chart(fig_stock_loss, use_container_width=True)
 
 with st.container():
-    st.markdown("""<div style="background-color:#F7F7F7; padding:0px 0px; border-radius:16px; width:100%; text-align:center;">
-                    <h4>💸 Pérdidas Históricas Mensuales (€)</h4></div>""", unsafe_allow_html=True)
+    st.markdown("""
+        <div class="titulo-con-fondo">
+            💸 Pérdidas Históricas Mensuales (€)
+        </div>
+    """, unsafe_allow_html=True)
     st.plotly_chart(fig_perdidas_hist, use_container_width=True)
 
 
 # --- Rankings corregidos --- 
-# Calcular promedio mensual real
 df_demand_ventas['mes'] = pd.to_datetime(df_demand_ventas['fecha']).dt.to_period('M').dt.to_timestamp()
 df_demand_ventas_mensual = df_demand_ventas.groupby(['sku', 'mes']).agg(
     demanda=('demanda', 'sum'),
@@ -306,7 +321,7 @@ perdidas_por_sku = df_hist.groupby('sku').agg(
     perdida_euros=('valor_perdido_euros', 'sum')
 ).reset_index()
 
-# --- Rankings finales y merge ---
+# Rankings finales
 df_rank_loss = perdidas_por_sku.merge(df_top[['sku', 'demanda_mensual']], on='sku', how='left')
 df_rank_loss = df_rank_loss.sort_values(by='perdida_euros', ascending=False).head(10).reset_index(drop=True)
 df_rank_loss.insert(0, 'Ranking', range(1, len(df_rank_loss) + 1))
@@ -314,11 +329,15 @@ df_rank_loss.insert(0, 'Ranking', range(1, len(df_rank_loss) + 1))
 df_rank_sales = df_top.sort_values(by='pxq', ascending=False).head(10).reset_index(drop=True)
 df_rank_sales.insert(0, 'Ranking', range(1, len(df_rank_sales) + 1))
 
-# --- Mostrar tablas con estilo centrado y sin decimales --- 
+# --- Mostrar tablas con estilo limpio y títulos corregidos ---
 colA, colB = st.columns(2)
 
 with colA:
-    st.markdown("<h4 style='text-align: center;'>🔻 Top 10 SKUs con más pérdidas<br>(últimos 12 meses)</h4>", unsafe_allow_html=True)
+    st.markdown("""
+        <div class="titulo-con-fondo" style="min-height: 50px;">
+            🔻 Top 10 SKUs con más pérdidas (últimos 12 meses)
+        </div>
+    """, unsafe_allow_html=True)
     st.dataframe(
         df_rank_loss[['Ranking', 'sku', 'unidades_perdidas', 'perdida_euros']].rename(columns={
             'sku': 'SKU', 'unidades_perdidas': 'Unidades Perdidas', 'perdida_euros': 'Pérdida (€)'
@@ -328,7 +347,11 @@ with colA:
     )
 
 with colB:
-    st.markdown("<h4 style='text-align: center;'>🏆 Top 10 SKUs con más ventas<br>&nbsp;</h4>", unsafe_allow_html=True)
+    st.markdown("""
+        <div class="titulo-con-fondo" style="min-height: 50px;">
+            🏆 Top 10 SKUs con más ventas
+        </div>
+    """, unsafe_allow_html=True)
     st.dataframe(
         df_rank_sales[['Ranking', 'sku', 'demanda_mensual', 'pxq']].rename(columns={
             'sku': 'SKU', 'demanda_mensual': 'Demanda Mensual', 'pxq': 'PxQ (€)'
@@ -336,11 +359,10 @@ with colB:
         use_container_width=True,
         hide_index=True
     )
-
-# --- Descargar reportes centrado con columnas --- 
+# --- Descargar reportes centrado con estilo unificado ---
 st.markdown("""
-    <div style="text-align: center;">
-        <h4 style="margin-bottom: 1.5rem;">📥 Descargar reportes consolidados</h4>
+    <div class="titulo-con-fondo">
+        📥 Descargar reportes consolidados
     </div>
 """, unsafe_allow_html=True)
 
