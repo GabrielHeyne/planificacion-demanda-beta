@@ -71,6 +71,9 @@ if archivo_demanda is not None:
     demand_df = pd.read_csv(archivo_demanda)
     df_limpio = clean_demand(demand_df)
 
+    # 👇 Esta línea es clave para que funcione el resto de la app
+    st.session_state['demanda_limpia'] = df_limpio
+
     st.subheader("Demanda limpia")
     st.dataframe(df_limpio[['sku', 'fecha', 'demanda', 'demanda_sin_stockout', 'demanda_sin_outlier']])
 
