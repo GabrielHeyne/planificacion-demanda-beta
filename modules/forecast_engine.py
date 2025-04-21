@@ -88,19 +88,20 @@ def forecast_simple(df, lead_time_meses=3):
     df_final['demanda'] = df_final['demanda'].fillna(0).astype(int)
     df_final['demanda_limpia'] = df_final['demanda_limpia'].fillna(0).astype(int)
 
-    # -------- DPA MÓVIL --------
+    # -------- DPA MÓVIL (solo para tipo_mes = backtest) --------
     df_final['dpa_movil'] = np.nan
     for sku in df_final['sku'].unique():
-        df_sku = df_final[(df_final['sku'] == sku) & (df_final['tipo_mes'] == 'backtest')].sort_values('mes')
-        for i in range(2, len(df_sku)):
-            ventana = df_sku.iloc[i-2:i+1]  # Bolsa de 3 meses
+        df_sku_bt = df_final[(df_final['sku'] == sku) & (df_final['tipo_mes'] == 'backtest')].sort_values('mes')
+        for i in range(2, len(df_sku_bt)):
+            ventana = df_sku_bt.iloc[i-2:i+1]
             suma_real = ventana['demanda_limpia'].sum()
             suma_forecast = ventana['forecast'].sum()
             if suma_real > 0:
                 dpa = 1 - abs(suma_real - suma_forecast) / suma_real
                 dpa = max(dpa, 0)
-                idx = df_final[(df_final['sku'] == sku) & (df_final['mes'] == df_sku.iloc[i]['mes'])].index
-                df_final.loc[idx, 'dpa_movil'] = round(dpa, 4)
+                idx_bt = df_sku_bt.iloc[i].name  # Índice dentro de df_final
+                df_final.loc[idx_bt, 'dpa_movil'] = round(dpa, 4)
+
 
     df_final['mes'] = df_final['mes'].dt.strftime('%Y-%m')
     return df_final

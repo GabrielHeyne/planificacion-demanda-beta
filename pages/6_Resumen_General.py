@@ -1,13 +1,11 @@
 import streamlit as st
-from utils import render_logo_sidebar  # Importa la función desde utils.py
+from utils import render_logo_sidebar
 from PIL import Image
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 import os
 from modules.resumen_utils import consolidar_historico_stock, consolidar_proyeccion_futura
-
-
 
 # --- Configuración de página ---
 st.set_page_config(page_title="Resumen General", layout="wide")
@@ -17,20 +15,17 @@ def load_css():
     with open("utils/style.css") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-# Cargar los estilos
 load_css()
+render_logo_sidebar()
 
-# Llamar a la función para renderizar el logo en la barra lateral
-render_logo_sidebar()  # Este es el cambio para mostrar el logo
-
-# --- Validaciones para asegurarse que los datos requeridos estén disponibles ---
+# --- Validaciones ---
 requisitos = ['forecast', 'demanda_limpia', 'stock_historico', 'stock_actual']
 for r in requisitos:
     if r not in st.session_state or st.session_state[r] is None:
         st.warning(f"⚠️ Faltan datos requeridos: {r}. Ve al módulo correspondiente.")
         st.stop()
 
-# --- Carga de los datos desde session_state ---
+# --- Carga de datos ---
 df_demand = st.session_state['demanda_limpia'].copy()
 df_forecast = st.session_state['forecast'].copy()
 df_stock_hist = st.session_state['stock_historico'].copy()
@@ -42,19 +37,17 @@ df_maestro = st.session_state.get('maestro', pd.DataFrame())
 sku_options = sorted(set(df_demand['sku'].unique()) | set(df_forecast['sku'].unique()))
 sku_select = st.selectbox("🔍 Filtrar por SKU", options=['Todos'] + sku_options)
 
-# --- Consolidación de los datos ---
+# --- Consolidación de datos ---
 @st.cache_data
 def calcular_resumen(df_demand, df_forecast, df_stock_actual, df_repos, df_maestro):
-    # Consolida el historial de stock y la proyección futura
     df_hist = consolidar_historico_stock(df_demand, df_maestro)
     df_futuro = consolidar_proyeccion_futura(df_forecast, df_stock_actual, df_repos, df_maestro)
     return df_hist, df_futuro
 
-# Calcular los datos consolidados
 df_hist, df_futuro = calcular_resumen(df_demand, df_forecast, df_stock_actual, df_repos, df_maestro)
 st.session_state['proyeccion_stock'] = df_futuro
 
-# --- Filtrar los datos por SKU si se ha seleccionado uno ---
+# --- Aplicar filtro por SKU ---
 if sku_select != 'Todos':
     df_hist = df_hist[df_hist['sku'] == sku_select]
     df_futuro = df_futuro[df_futuro['sku'] == sku_select]
@@ -64,58 +57,63 @@ if sku_select != 'Todos':
     df_stock_actual = df_stock_actual[df_stock_actual['sku'] == sku_select]
     df_repos = df_repos[df_repos['sku'] == sku_select]
 
-# --- Detectar el último mes completo con al menos 4 semanas ---
+# --- Detectar último mes completo ---
 df_demand['fecha'] = pd.to_datetime(df_demand['fecha'])
 df_demand['mes'] = df_demand['fecha'].dt.to_period('M').dt.to_timestamp()
 df_demand['semana'] = df_demand['fecha'].dt.isocalendar().week
 
-# Contar las semanas por mes
 conteo_semanas = df_demand.groupby('mes')['semana'].nunique().reset_index(name='num_semanas')
 meses_completos = conteo_semanas[conteo_semanas['num_semanas'] >= 4]['mes']
 if meses_completos.empty:
-    st.warning("⚠️ No se encontraron meses completos con al menos 4 semanas de demanda.")
+    st.warning("⚠️ No se encontraron meses completos con al menos 4 semanas.")
     st.stop()
 ultimo_mes_completo = meses_completos.max()
 mes_siguiente = ultimo_mes_completo + pd.DateOffset(months=1)
 
-# --- Filtrar datos históricos para los últimos 12 meses hasta el último mes completo ---
+# --- Filtros de fechas ---
 fecha_max_hist = ultimo_mes_completo
 fecha_min_hist = fecha_max_hist - pd.DateOffset(months=12)
 
 df_hist['mes'] = pd.to_datetime(df_hist['mes'])
 df_hist = df_hist[(df_hist['mes'] >= fecha_min_hist) & (df_hist['mes'] <= fecha_max_hist)]
-
 df_demand = df_demand[(df_demand['mes'] >= fecha_min_hist) & (df_demand['mes'] <= fecha_max_hist)]
 
 df_stock_hist['fecha'] = pd.to_datetime(df_stock_hist['fecha'])
 df_stock_hist['mes'] = df_stock_hist['fecha'].dt.to_period('M').dt.to_timestamp()
 df_stock_hist = df_stock_hist[(df_stock_hist['mes'] >= fecha_min_hist) & (df_stock_hist['mes'] <= fecha_max_hist)]
 
-# --- KPIs ---
+# --- KPIs base ---
 total_stock = int(df_stock_actual['stock'].sum())
 unidades_vendidas_12m = int(df_demand['demanda'].sum())
 unidades_en_camino = int(df_repos['cantidad'].sum())
 
-# Merge para obtener ventas en euros
 df_demand_ventas = df_demand.merge(df_maestro[['sku', 'precio_venta']], on='sku', how='left')
 df_demand_ventas['venta_real_euros'] = df_demand_ventas['demanda'] * df_demand_ventas['precio_venta']
 facturacion_12m = int(df_demand_ventas['venta_real_euros'].sum())
 
-# Unidades perdidas históricas y pérdidas en euros
 unidades_perdidas_hist = int(df_hist['unidades_perdidas'].sum())
 perdidas_hist_euros = int(df_hist['valor_perdido_euros'].sum())
 
-# --- Cálculo de la tasa de quiebre ---
-tasa_quiebre = 0
-if (unidades_perdidas_hist + unidades_vendidas_12m) > 0:
-    tasa_quiebre = (unidades_perdidas_hist / (unidades_perdidas_hist + unidades_vendidas_12m)) * 100
+tasa_quiebre = (unidades_perdidas_hist / (unidades_perdidas_hist + unidades_vendidas_12m)) * 100 if (unidades_perdidas_hist + unidades_vendidas_12m) > 0 else 0
 
-# --- Demanda promedio mensual últimos 3 meses completos ---
 meses_validos = meses_completos.sort_values().iloc[-3:]
 df_demand_3m = df_demand[df_demand['mes'].isin(meses_validos)]
 demanda_promedio_mensual = int(df_demand_3m.groupby('mes')['demanda'].sum().mean())
 
-# --- KPIs visuales (alineados) ---
+# --- KPIs adicionales desde df_futuro ---
+df_compras_kpi = df_futuro.copy()
+df_compras_kpi = df_compras_kpi.groupby('sku').agg({
+    'forecast': 'sum',
+    'stock_final_mes': 'last'
+}).reset_index()
+
+df_compras_kpi['accion'] = df_compras_kpi.apply(lambda row: 'Comprar' if row['stock_final_mes'] < row['forecast'] else 'No comprar', axis=1)
+df_compras_kpi['unidades_a_comprar'] = df_compras_kpi.apply(lambda row: row['forecast'] - row['stock_final_mes'] if row['accion'] == 'Comprar' else 0, axis=1)
+
+total_skus_comprar = df_compras_kpi[df_compras_kpi['accion'] == 'Comprar'].shape[0]
+total_unidades_comprar = int(df_compras_kpi['unidades_a_comprar'].sum())
+
+# --- Mostrar KPIs visuales ---
 kpi_style = """
     <div style="
         background-color:#ffffff;
@@ -129,31 +127,40 @@ kpi_style = """
         justify-content:space-between;
         margin: 10px;
         border: 1px solid #B0B0B0;
-        box-shadow: none; /* Sin sombra */
+        box-shadow: none;
     ">
-        <div style="font-size:13px; font-weight:500; height:36px; display:flex; align-items:center; justify-content:center; gap:6px;">
-            {label}
-        </div>
-        <div style="font-size:30px; font-weight:400;">{value}</div>  <!-- Aumentar tamaño de letra y quitar negritas en el valor -->
+        <div style="font-size:13px; font-weight:500;">{label}</div>
+        <div style="font-size:30px; font-weight:400;">{value}</div>
     </div>
 """
 
-# Fila 1 de KPIs
-col1, col2, col3, col4 = st.columns(4)
-col1.markdown(kpi_style.format(icon="📦", label="Stock Actual", value=f"{total_stock:,}"), unsafe_allow_html=True)
-col2.markdown(kpi_style.format(icon="🛒", label="Unidades Vendidas (12M)", value=f"{unidades_vendidas_12m:,}"), unsafe_allow_html=True)
-col3.markdown(kpi_style.format(icon="💰", label="Facturación (12M)", value=f"€ {facturacion_12m:,}"), unsafe_allow_html=True)
-col4.markdown(kpi_style.format(icon="🚚", label="Unidades en Camino", value=f"{unidades_en_camino:,}"), unsafe_allow_html=True)
+col1, col2, col3, col4, col9 = st.columns(5)
+col1.markdown(kpi_style.format(label="Stock Actual", value=f"{total_stock:,}"), unsafe_allow_html=True)
+col2.markdown(kpi_style.format(label="Unid. Vendidas (12M)", value=f"{unidades_vendidas_12m:,}"), unsafe_allow_html=True)
+col3.markdown(kpi_style.format(label="Facturación (12M)", value=f"€ {facturacion_12m:,}"), unsafe_allow_html=True)
+col4.markdown(kpi_style.format(label="Unid. en Camino", value=f"{unidades_en_camino:,}"), unsafe_allow_html=True)
+col9.markdown(kpi_style.format(label="SKUs a Comprar", value=f"{total_skus_comprar:,}"), unsafe_allow_html=True)
 
-# Separación
 st.markdown("<div style='margin-top: 12px;'></div>", unsafe_allow_html=True)
 
-# Fila 2 de KPIs
-col5, col6, col7, col8 = st.columns(4)
-col5.markdown(kpi_style.format(icon="❌", label="Unidades Perdidas (12M)", value=f"{unidades_perdidas_hist:,}"), unsafe_allow_html=True)
-col6.markdown(kpi_style.format(icon="📉", label="Venta Perdida (12M)", value=f"€ {perdidas_hist_euros:,}"), unsafe_allow_html=True)
-col7.markdown(kpi_style.format(icon="📊", label="Demanda Mensual (3M)", value=f"{demanda_promedio_mensual:,}"), unsafe_allow_html=True)
-col8.markdown(kpi_style.format(icon="⚠️", label="Tasa de Quiebre", value=f"{tasa_quiebre:.1f}%"), unsafe_allow_html=True)
+col5, col6, col7, col8, col10 = st.columns(5)
+col5.markdown(kpi_style.format(label="Unidades Perdidas (12M)", value=f"{unidades_perdidas_hist:,}"), unsafe_allow_html=True)
+col6.markdown(kpi_style.format(label="Venta Perdida (12M)", value=f"€ {perdidas_hist_euros:,}"), unsafe_allow_html=True)
+col7.markdown(kpi_style.format(label="Demanda Mensual (3M)", value=f"{demanda_promedio_mensual:,}"), unsafe_allow_html=True)
+col8.markdown(kpi_style.format(label="Tasa de Quiebre", value=f"{tasa_quiebre:.1f}%"), unsafe_allow_html=True)
+col10.markdown(kpi_style.format(label="Unidades a Comprar", value=f"{total_unidades_comprar:,}"), unsafe_allow_html=True)
+
+
+# 🔁 Desde aquí puedes continuar con tus gráficos y tablas como ya los tienes en el archivo original.
+
+
+# (Desde aquí continúan tus gráficos y tablas como ya los tienes...)
+
+
+
+
+# (Desde aquí continúan tus gráficos y tablas como ya los tienes...)
+
 
 # --- Espacio visual entre KPIs y gráficos ---
 st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)

@@ -1,4 +1,7 @@
 import pandas as pd
+import numpy as np
+import streamlit as st  # ✅ Esto es lo que faltaba
+
 
 def consolidar_historico_stock(df_demanda, df_maestro):
     """
@@ -79,5 +82,7 @@ def consolidar_proyeccion_futura(df_forecast, df_stock, df_repos, df_maestro):
     # Agregar info del maestro
     if not df_maestro.empty:
         df_final = df_final.merge(df_maestro, on='sku', how='left')
+
+    st.session_state['stock_proyectado'] = df_final  # ✅ agregamos esto
 
     return df_final

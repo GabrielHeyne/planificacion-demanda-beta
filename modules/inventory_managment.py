@@ -1,39 +1,38 @@
 import pandas as pd
-import numpy as np
 
-# Variables del cálculo
-lead_time = 4  # Lead Time en meses
-nivel_servicio = 1.65  # Z para nivel de servicio 95%
+def calcular_politicas_inventario(df_forecast, sku, unidades_en_camino, df_maestro, df_demanda_limpia):
+    # Filtrar el forecast futuro del SKU
+    fecha_actual = pd.to_datetime("today").replace(day=1)
+    df_forecast_sku = df_forecast[(df_forecast['sku'] == sku) & (df_forecast['tipo_mes'] == 'proyección')].copy()
+    df_forecast_sku['mes'] = pd.to_datetime(df_forecast_sku['mes'])
+    forecast_futuro = df_forecast_sku[df_forecast_sku['mes'] >= fecha_actual].sort_values('mes')
 
-# Datos de ejemplo (suponiendo que ya tienes estos datos en df_forecast)
-# df_forecast debe tener las columnas 'sku' y 'forecast' para que esta parte funcione
+    # Calcular demanda mensual como el promedio del forecast de los próximos 4 meses
+    forecast_4m = forecast_futuro.head(4)['forecast']
+    demanda_mensual = int(round(forecast_4m.mean(), 0)) if not forecast_4m.empty else 0
 
-# Filtramos el dataframe para un SKU específico (ya hecho antes en el código)
-df_forecast_filtrado = df_forecast[df_forecast['sku'] == sku_sel]
+    # --- Desviación estándar de la demanda histórica (últimos 12 meses con demanda > 0) ---
+    df_d_sku = df_demanda_limpia[(df_demanda_limpia['sku'] == sku) & (df_demanda_limpia['demanda'] > 0)].copy()
+    df_d_sku['mes'] = pd.to_datetime(df_d_sku['fecha']).dt.to_period('M')
+    demanda_mensual_hist = df_d_sku.groupby('mes')['demanda'].sum()
+    ultimos_meses = demanda_mensual_hist.tail(12)
+    desviacion_estandar = ultimos_meses.std() if not ultimos_meses.empty else 0
 
-# Calcular la desviación estándar de la demanda mensual proyectada (forecast)
-desviacion_estandar = df_forecast_filtrado['forecast'].std()
+    # --- Safety stock (Z = 1.65 para 95% nivel de servicio) ---
+    safety_stock = round(desviacion_estandar * 1.65)
 
-# Calcular el Safety Stock (SS)
-safety_stock = nivel_servicio * desviacion_estandar * np.sqrt(lead_time)
+    # --- ROP original y ajustado ---
+    lead_time = 5  # meses
+    rop_original = demanda_mensual * lead_time
+    rop = rop_original + safety_stock
 
-# Calcular el ROP (Reorder Point) considerando el safety stock y la demanda mensual proyectada
-# Demanda mensual proyectada en base al forecast
-demanda_mensual_promedio = df_forecast_filtrado['forecast'].mean()
+    # --- EOQ definido como demanda mensual * 3 (política interna) ---
+    eoq = demanda_mensual * 3
 
-# Calcular el Reorder Point (ROP)
-rop = (demanda_mensual_promedio * lead_time) + safety_stock
-
-# El ROP puede ser ajustado para reflejar las unidades en camino si es necesario
-# Por ejemplo, si tienes datos de unidades en camino, puedes restarlos del ROP
-# Vamos a suponer que 'unidades_en_camino' es un valor que ya tienes cargado
-unidades_en_camino = 100  # Este valor debe ser calculado o recuperado según el contexto
-
-# Ajustamos el ROP si hay unidades en camino
-rop_ajustado = rop - unidades_en_camino if unidades_en_camino > 0 else rop
-
-# Mostramos el resultado
-st.write(f"El ROP calculado es: {rop:.2f} unidades")
-st.write(f"El ROP ajustado por unidades en camino es: {rop_ajustado:.2f} unidades")
-st.write(f"El Safety Stock calculado es: {safety_stock:.2f} unidades")
-
+    return {
+        "demanda_mensual": demanda_mensual,
+        "safety_stock": safety_stock,
+        "rop_original": rop_original,
+        "rop": rop,
+        "eoq": eoq
+    }

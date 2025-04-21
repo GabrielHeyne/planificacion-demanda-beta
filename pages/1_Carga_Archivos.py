@@ -1,6 +1,5 @@
 import pandas as pd
 import streamlit as st
-from utils import render_logo_sidebar  # Importa la función desde utils.py
 import os
 from pandas import ExcelWriter
 from modules.demand_cleaner import clean_demand
@@ -12,10 +11,6 @@ def load_css():
 
 # Cargar el CSS
 load_css()
-
-# Llamar a la función para renderizar el logo en la barra lateral
-render_logo_sidebar()  # Este es el cambio para mostrar el logo
-
 
 # --- Inicializar session_state ---
 if 'demanda_limpia' not in st.session_state:
@@ -54,7 +49,7 @@ if st.session_state['demanda_limpia'] is None:
         st.rerun()
 else:
     cleaned_demand_df = st.session_state['demanda_limpia']
-    st.subheader("✅ Vista previa de la demanda limpia")
+    st.markdown("<div style='font-size:16px;'>✅ <b>Vista previa de la demanda limpia</b></div>", unsafe_allow_html=True)
     st.dataframe(cleaned_demand_df[['sku', 'fecha', 'demanda', 'demanda_sin_stockout', 'demanda_sin_outlier']])
 
     if 'demanda_limpia_path' in st.session_state:
@@ -92,7 +87,7 @@ if st.session_state['stock_actual'] is None:
             st.error("⚠️ El archivo debe tener las columnas: sku, descripcion, stock, fecha.")
 else:
     stock_df = st.session_state['stock_actual']
-    st.subheader("✅ Vista previa del stock actual")
+    st.markdown("<div style='font-size:16px;'>✅ <b>Vista previa del stock actual</b></div>", unsafe_allow_html=True)
     st.dataframe(stock_df[['sku', 'descripcion', 'stock', 'fecha']])
 
 # --- CARGA REPOSICIONES FUTURAS ---
@@ -120,7 +115,7 @@ if st.session_state['reposiciones'] is None:
             st.error("⚠️ El archivo debe tener las columnas: sku, fecha, cantidad.")
 else:
     repos_df = st.session_state['reposiciones']
-    st.subheader("✅ Vista previa de las reposiciones futuras")
+    st.markdown("<div style='font-size:16px;'>✅ <b>Vista previa de las reposiciones futuras</b></div>", unsafe_allow_html=True)
     st.dataframe(repos_df)
 
 # --- CARGA MAESTRO DE PRODUCTOS ---
@@ -147,7 +142,7 @@ if st.session_state['maestro'] is None:
             st.error("⚠️ El archivo debe tener las columnas: sku, descripcion, costo_fabricacion, precio_venta, categoria.")
 else:
     maestro_df = st.session_state['maestro']
-    st.subheader("✅ Vista previa del maestro de productos")
+    st.markdown("<div style='font-size:16px;'>✅ <b>Vista previa del maestro de productos</b></div>", unsafe_allow_html=True)
     st.dataframe(maestro_df)
 
 # --- CARGA DE STOCK HISTÓRICO ---
@@ -175,5 +170,5 @@ if st.session_state['stock_historico'] is None:
             st.error("⚠️ El archivo debe tener las columnas: sku, fecha, stock.")
 else:
     stock_hist_df = st.session_state['stock_historico']
-    st.subheader("✅ Vista previa del stock histórico")
+    st.markdown("<div style='font-size:16px;'>✅ <b>Vista previa del stock histórico</b></div>", unsafe_allow_html=True)
     st.dataframe(stock_hist_df)
