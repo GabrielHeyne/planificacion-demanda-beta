@@ -3,176 +3,133 @@ import streamlit as st
 import os
 from pandas import ExcelWriter
 from modules.demand_cleaner import clean_demand
+from utils import render_logo_sidebar
 
-# Cargar CSS
+# --- Cargar estilos y logo ---
 def load_css():
     with open("utils/style.css") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
-
-# Cargar el CSS
 load_css()
-
-# Logo lateral
-from utils import render_logo_sidebar  
 render_logo_sidebar()
-
-# --- Inicializar session_state ---
-if 'demanda_limpia' not in st.session_state:
-    st.session_state['demanda_limpia'] = None
-if 'stock_actual' not in st.session_state:
-    st.session_state['stock_actual'] = None
-if 'reposiciones' not in st.session_state:
-    st.session_state['reposiciones'] = None
-if 'maestro' not in st.session_state:
-    st.session_state['maestro'] = None
-if 'stock_historico' not in st.session_state:
-    st.session_state['stock_historico'] = None
 
 os.makedirs("data", exist_ok=True)
 
-# --- CARGA DEMANDA ---
+# --- Recargar desde disco si session_state está vacío ---
+def cargar_si_existe(clave, ruta, tipo='csv'):
+    if clave not in st.session_state or st.session_state[clave] is None:
+        if os.path.exists(ruta):
+            df = pd.read_excel(ruta) if tipo == 'excel' else pd.read_csv(ruta)
+            st.session_state[clave] = df
+            return df
+    return st.session_state.get(clave)
+
+# --- DEMANDA ---
 st.markdown("<div class='section-title'>📁 Carga de Archivos y Limpieza de Demanda</div>", unsafe_allow_html=True)
 st.markdown("<div class='subtext'>Sube el archivo de demanda (CSV)</div>", unsafe_allow_html=True)
 
-if st.session_state['demanda_limpia'] is None:
+demanda_df = cargar_si_existe('demanda_limpia', "data/demanda_limpia.xlsx", tipo='excel')
+
+if demanda_df is None:
     archivo_demanda = st.file_uploader("", type="csv", key="uploader_demanda")
-
     if archivo_demanda is not None:
-        demand_df = pd.read_csv(archivo_demanda)
-        demand_df['fecha'] = pd.to_datetime(demand_df['fecha'])
-
-        cleaned_demand_df = clean_demand(demand_df)
-        st.session_state['demanda_limpia'] = cleaned_demand_df
-
-        file_path = "data/demanda_limpia.xlsx"
-        with ExcelWriter(file_path, engine='xlsxwriter') as writer:
-            cleaned_demand_df.to_excel(writer, index=False, sheet_name='Demanda Limpia')
-
-        st.session_state['demanda_limpia_path'] = file_path
-        st.success("✅ Archivo cargado y demanda limpia generada correctamente.")
+        raw = pd.read_csv(archivo_demanda)
+        raw['fecha'] = pd.to_datetime(raw['fecha'])
+        clean_df = clean_demand(raw)
+        st.session_state['demanda_limpia'] = clean_df
+        with ExcelWriter("data/demanda_limpia.xlsx", engine='xlsxwriter') as writer:
+            clean_df.to_excel(writer, index=False)
+        st.success("✅ Archivo cargado y demanda limpia generada.")
         st.rerun()
 else:
-    cleaned_demand_df = st.session_state['demanda_limpia']
-    st.markdown("<div style='font-size:16px;'>✅ <b>Vista previa de la demanda limpia</b></div>", unsafe_allow_html=True)
-    st.dataframe(cleaned_demand_df[['sku', 'fecha', 'demanda', 'demanda_sin_stockout', 'demanda_sin_outlier']])
+    st.subheader("✅ Vista previa de la demanda limpia")
+    cols = [c for c in ['sku', 'fecha', 'demanda', 'demanda_sin_stockout', 'demanda_sin_outlier'] if c in demanda_df.columns]
+    st.dataframe(demanda_df[cols])
+    with open("data/demanda_limpia.xlsx", "rb") as f:
+        st.download_button("📥 Descargar Excel de Demanda Limpia", f.read(), "demanda_limpia.xlsx")
+    st.info("ℹ️ Los datos ya están disponibles para análisis.")
 
-    if 'demanda_limpia_path' in st.session_state:
-        file_path = st.session_state['demanda_limpia_path']
-        st.download_button(
-            label="📥 Descargar Excel de Demanda Limpia",
-            data=open(file_path, 'rb').read(),
-            file_name="demanda_limpia.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-
-    st.info("ℹ️ Los datos ya fueron cargados y están disponibles para visualización o forecasting desde el menú 'Demanda Total'.")
-
-# --- CARGA STOCK ACTUAL ---
+# --- STOCK ACTUAL ---
 st.markdown("<div class='section-title'>📦 Carga de Stock Actual por SKU (Opcional)</div>", unsafe_allow_html=True)
-st.markdown("<div class='subtext'>Sube el archivo de stock actual (CSV)</div>", unsafe_allow_html=True)
+stock_df = cargar_si_existe("stock_actual", "data/stock_actual.csv")
 
-if st.session_state['stock_actual'] is None:
+if stock_df is None:
     archivo_stock = st.file_uploader("", type="csv", key="uploader_stock")
-
-    if archivo_stock is not None:
-        stock_df = pd.read_csv(archivo_stock)
-        columnas_esperadas = {'sku', 'descripcion', 'stock', 'fecha'}
-
-        if columnas_esperadas.issubset(set(stock_df.columns)):
-            stock_df['fecha'] = pd.to_datetime(stock_df['fecha'], errors='coerce')
-            st.session_state['stock_actual'] = stock_df
-
-            stock_df.to_csv("data/stock_actual.csv", index=False)
-            st.session_state['stock_actual_path'] = "data/stock_actual.csv"
-
-            st.success("✅ Archivo de stock actual cargado correctamente.")
+    if archivo_stock:
+        df = pd.read_csv(archivo_stock)
+        expected = {'sku', 'descripcion', 'stock', 'fecha'}
+        if expected.issubset(df.columns):
+            df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
+            st.session_state["stock_actual"] = df
+            df.to_csv("data/stock_actual.csv", index=False)
+            st.success("✅ Archivo cargado.")
             st.rerun()
         else:
-            st.error("⚠️ El archivo debe tener las columnas: sku, descripcion, stock, fecha.")
+            st.error(f"⚠️ Faltan columnas: {expected - set(df.columns)}")
 else:
-    stock_df = st.session_state['stock_actual']
-    st.markdown("<div style='font-size:16px;'>✅ <b>Vista previa del stock actual</b></div>", unsafe_allow_html=True)
+    st.subheader("✅ Vista previa del stock actual")
     st.dataframe(stock_df[['sku', 'descripcion', 'stock', 'fecha']])
 
-# --- CARGA REPOSICIONES FUTURAS ---
+# --- REPOSICIONES ---
 st.markdown("<div class='section-title'>📦 Carga de Reposiciones Futuras (Opcional)</div>", unsafe_allow_html=True)
-st.markdown("<div class='subtext'>Sube el archivo de reposiciones (CSV) con columnas: sku, fecha, cantidad</div>", unsafe_allow_html=True)
+repos_df = cargar_si_existe("reposiciones", "data/reposiciones.csv")
 
-if st.session_state['reposiciones'] is None:
-    archivo_reposiciones = st.file_uploader("", type="csv", key="uploader_reposiciones")
-
-    if archivo_reposiciones is not None:
-        repos_df = pd.read_csv(archivo_reposiciones)
-        columnas_requeridas = {'sku', 'fecha', 'cantidad'}
-
-        if columnas_requeridas.issubset(set(repos_df.columns)):
-            repos_df['fecha'] = pd.to_datetime(repos_df['fecha'], errors='coerce')
-            repos_df['cantidad'] = pd.to_numeric(repos_df['cantidad'], errors='coerce').fillna(0).astype(int)
-            st.session_state['reposiciones'] = repos_df
-
-            repos_df.to_csv("data/reposiciones.csv", index=False)
-            st.session_state['reposiciones_path'] = "data/reposiciones.csv"
-
-            st.success("✅ Archivo de reposiciones cargado correctamente.")
+if repos_df is None:
+    archivo_repos = st.file_uploader("", type="csv", key="uploader_reposiciones")
+    if archivo_repos:
+        df = pd.read_csv(archivo_repos)
+        expected = {'sku', 'fecha', 'cantidad'}
+        if expected.issubset(df.columns):
+            df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
+            df['cantidad'] = pd.to_numeric(df['cantidad'], errors='coerce').fillna(0).astype(int)
+            st.session_state["reposiciones"] = df
+            df.to_csv("data/reposiciones.csv", index=False)
+            st.success("✅ Reposiciones cargadas.")
             st.rerun()
         else:
-            st.error("⚠️ El archivo debe tener las columnas: sku, fecha, cantidad.")
+            st.error(f"⚠️ Faltan columnas: {expected - set(df.columns)}")
 else:
-    repos_df = st.session_state['reposiciones']
-    st.markdown("<div style='font-size:16px;'>✅ <b>Vista previa de las reposiciones futuras</b></div>", unsafe_allow_html=True)
+    st.subheader("✅ Vista previa de las reposiciones futuras")
     st.dataframe(repos_df)
 
-# --- CARGA MAESTRO DE PRODUCTOS ---
+# --- MAESTRO ---
 st.markdown("<div class='section-title'>📘 Carga del Maestro de Productos</div>", unsafe_allow_html=True)
-st.markdown("<div class='subtext'>Sube el archivo maestro (CSV) con columnas: sku, descripcion, costo_fabricacion, precio_venta, categoria</div>", unsafe_allow_html=True)
+maestro_df = cargar_si_existe("maestro", "data/maestro.csv")
 
-if st.session_state['maestro'] is None:
+if maestro_df is None:
     archivo_maestro = st.file_uploader("", type="csv", key="uploader_maestro")
-
-    if archivo_maestro is not None:
-        maestro_df = pd.read_csv(archivo_maestro)
-        columnas_requeridas = {'sku', 'descripcion', 'costo_fabricacion', 'precio_venta', 'categoria'}
-
-        if columnas_requeridas.issubset(set(maestro_df.columns)):
-            maestro_df = maestro_df.dropna(subset=['sku'])
-            st.session_state['maestro'] = maestro_df
-
-            maestro_df.to_csv("data/maestro.csv", index=False)
-            st.session_state['maestro_path'] = "data/maestro.csv"
-
-            st.success("✅ Archivo maestro cargado correctamente.")
+    if archivo_maestro:
+        df = pd.read_csv(archivo_maestro)
+        expected = {'sku', 'descripcion', 'costo_fabricacion', 'precio_venta', 'categoria'}
+        if expected.issubset(df.columns):
+            df = df.dropna(subset=['sku'])
+            st.session_state['maestro'] = df
+            df.to_csv("data/maestro.csv", index=False)
+            st.success("✅ Maestro cargado.")
             st.rerun()
         else:
-            st.error("⚠️ El archivo debe tener las columnas: sku, descripcion, costo_fabricacion, precio_venta, categoria.")
+            st.error(f"⚠️ Faltan columnas: {expected - set(df.columns)}")
 else:
-    maestro_df = st.session_state['maestro']
-    st.markdown("<div style='font-size:16px;'>✅ <b>Vista previa del maestro de productos</b></div>", unsafe_allow_html=True)
+    st.subheader("✅ Vista previa del maestro de productos")
     st.dataframe(maestro_df)
 
-# --- CARGA DE STOCK HISTÓRICO ---
+# --- STOCK HISTÓRICO ---
 st.markdown("<div class='section-title'>📊 Carga de Stock Histórico</div>", unsafe_allow_html=True)
-st.markdown("<div class='subtext'>Sube el archivo de stock histórico (CSV) con columnas: sku, fecha, stock</div>", unsafe_allow_html=True)
+stock_hist_df = cargar_si_existe("stock_historico", "data/stock_historico.csv")
 
-if st.session_state['stock_historico'] is None:
+if stock_hist_df is None:
     archivo_stock_hist = st.file_uploader("", type="csv", key="uploader_stock_historico")
-
-    if archivo_stock_hist is not None:
-        stock_hist_df = pd.read_csv(archivo_stock_hist)
-        columnas_requeridas = {'sku', 'fecha', 'stock'}
-
-        if columnas_requeridas.issubset(set(stock_hist_df.columns)):
-            stock_hist_df['fecha'] = pd.to_datetime(stock_hist_df['fecha'], errors='coerce')
-            stock_hist_df['stock'] = pd.to_numeric(stock_hist_df['stock'], errors='coerce').fillna(0).astype(int)
-            st.session_state['stock_historico'] = stock_hist_df
-
-            stock_hist_df.to_csv("data/stock_historico.csv", index=False)
-            st.session_state['stock_historico_path'] = "data/stock_historico.csv"
-
-            st.success("✅ Archivo de stock histórico cargado correctamente.")
+    if archivo_stock_hist:
+        df = pd.read_csv(archivo_stock_hist)
+        expected = {'sku', 'fecha', 'stock'}
+        if expected.issubset(df.columns):
+            df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
+            df['stock'] = pd.to_numeric(df['stock'], errors='coerce').fillna(0).astype(int)
+            st.session_state["stock_historico"] = df
+            df.to_csv("data/stock_historico.csv", index=False)
+            st.success("✅ Stock histórico cargado.")
             st.rerun()
         else:
-            st.error("⚠️ El archivo debe tener las columnas: sku, fecha, stock.")
+            st.error(f"⚠️ Faltan columnas: {expected - set(df.columns)}")
 else:
-    stock_hist_df = st.session_state['stock_historico']
-    st.markdown("<div style='font-size:16px;'>✅ <b>Vista previa del stock histórico</b></div>", unsafe_allow_html=True)
+    st.subheader("✅ Vista previa del stock histórico")
     st.dataframe(stock_hist_df)
