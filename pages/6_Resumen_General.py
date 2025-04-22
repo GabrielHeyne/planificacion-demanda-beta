@@ -45,7 +45,11 @@ def calcular_resumen(df_demand, df_forecast, df_stock_actual, df_repos, df_maest
     return df_hist, df_futuro
 
 df_hist, df_futuro = calcular_resumen(df_demand, df_forecast, df_stock_actual, df_repos, df_maestro)
+
+# ✅ Guardar ambos para el planificador IA
+st.session_state['resumen_historico'] = df_hist
 st.session_state['proyeccion_stock'] = df_futuro
+
 
 # --- Aplicar filtro por SKU ---
 if sku_select != 'Todos':

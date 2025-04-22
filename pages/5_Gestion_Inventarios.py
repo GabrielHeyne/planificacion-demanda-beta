@@ -125,8 +125,13 @@ col3.markdown(tarjeta_resumen("Costo Total de Fabricación", int(total_costo), "
 
 # --- Tabla detallada por SKU ---
 st.markdown("<div class='titulo-con-fondo'>📋 Tabla Resumen por SKU</div>", unsafe_allow_html=True)
+
 df_resumen = pd.DataFrame(tabla_resumen)
 df_resumen = df_resumen[["SKU", "Demanda Mensual", "Stock Actual", "Reposiciones", "Stock Proyectado (5M)", "ROP", "Safety Stock", "EOQ", "Costo Fabricación (€)", "Acción"]]
+
+# ✅ Guardar resumen en session_state para el planificador IA
+st.session_state["politicas_inventario"] = df_resumen
+
 st.dataframe(df_resumen, use_container_width=True)
 
 # --- Botón para descargar Excel ---

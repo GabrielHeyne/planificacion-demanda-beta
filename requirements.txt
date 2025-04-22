@@ -3,3 +3,5 @@ plotly
 streamlit
 openpyxl
 xlsxwriter
+openai
+

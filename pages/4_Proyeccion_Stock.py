@@ -63,6 +63,10 @@ if df_resultado.empty:
     st.warning("⚠️ No se pudo generar la proyección. Revisa si el forecast contiene datos desde la fecha seleccionada.")
     st.stop()
 
+# ✅ Guardar la proyección para el planificador IA
+st.session_state['stock_proyectado'] = df_resultado
+
+
 # --- KPIs visuales ---
 st.markdown("<div class='titulo-con-fondo'>📌 Información del Producto Seleccionado</div>", unsafe_allow_html=True)
 

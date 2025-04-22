@@ -26,10 +26,16 @@ else:
 
     df_demanda = st.session_state['demanda_limpia']
 
+    # ✅ Refuerza que también se mantenga actualizada en session_state (por si se recalcula)
+    st.session_state['demanda_limpia'] = df_demanda
+
     if 'forecast' not in st.session_state:
         st.session_state['forecast'] = forecast_simple(df_demanda, lead_time_meses=4)
 
     df_forecast = st.session_state['forecast']
+
+    # ✅ Refuerza que siempre se guarde el forecast (incluso si ya existía y fue modificado)
+    st.session_state['forecast'] = df_forecast
 
     # Selección de SKU
     sku_seleccionado = st.selectbox("Selecciona un SKU", df_forecast['sku'].unique())

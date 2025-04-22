@@ -28,9 +28,13 @@ def cargar_demanda():
 
 df = cargar_demanda()
 
+# ✅ Refuerza la persistencia de demanda limpia para el planificador IA
+st.session_state['demanda_limpia'] = df
+
 if df.empty:
     st.warning("⚠️ No se han cargado los datos limpios. Ve al menú 'Carga Archivos' para hacerlo.")
     st.stop()
+
 
 df['fecha'] = pd.to_datetime(df['fecha'])
 df['semana'] = df['fecha'].dt.to_period('W').apply(lambda r: r.start_time)

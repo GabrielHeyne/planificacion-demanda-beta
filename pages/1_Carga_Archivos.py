@@ -12,6 +12,10 @@ def load_css():
 # Cargar el CSS
 load_css()
 
+# Logo lateral
+from utils import render_logo_sidebar  
+render_logo_sidebar()
+
 # --- Inicializar session_state ---
 if 'demanda_limpia' not in st.session_state:
     st.session_state['demanda_limpia'] = None
