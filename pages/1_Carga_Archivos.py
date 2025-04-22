@@ -14,11 +14,17 @@ render_logo_sidebar()
 
 os.makedirs("data", exist_ok=True)
 
-# --- Recargar desde disco si session_state está vacío ---
+# --- Función para recargar desde disco ---
 def cargar_si_existe(clave, ruta, tipo='csv'):
     if clave not in st.session_state or st.session_state[clave] is None:
         if os.path.exists(ruta):
             df = pd.read_excel(ruta) if tipo == 'excel' else pd.read_csv(ruta)
+            if 'fecha' in df.columns:
+                df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
+            if 'cantidad' in df.columns:
+                df['cantidad'] = pd.to_numeric(df['cantidad'], errors='coerce').fillna(0).astype(int)
+            if 'stock' in df.columns:
+                df['stock'] = pd.to_numeric(df['stock'], errors='coerce').fillna(0).astype(int)
             st.session_state[clave] = df
             return df
     return st.session_state.get(clave)
