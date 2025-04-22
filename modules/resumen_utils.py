@@ -70,6 +70,10 @@ def consolidar_proyeccion_futura(df_forecast, df_stock, df_repos, df_maestro):
 
 def generar_contexto_negocio(df_forecast, df_proyeccion, df_hist):
     try:
+        # --- Verificación obligatoria ---
+        if "resultados_inventario" not in st.session_state or not st.session_state["resultados_inventario"]:
+            return "⚠️ Las políticas de inventario aún no han sido calculadas. Ve al módulo 'Gestión de Inventarios' primero."
+
         resumen_forecast = df_forecast[df_forecast['tipo_mes'] == 'proyección'].groupby('sku')['forecast'].mean().round(1).reset_index()
         resumen_forecast.columns = ['SKU', 'Forecast Promedio Mensual']
 
@@ -97,27 +101,29 @@ def generar_contexto_negocio(df_forecast, df_proyeccion, df_hist):
         ).reset_index(name='Tasa de Quiebre (%)')
         tasa_quiebre.columns = ['SKU', 'Tasa de Quiebre (%)']
 
-        politicas_df = pd.DataFrame()
-        resultados = st.session_state.get("resultados_inventario", {})
-        if resultados:
-            politicas_df = pd.DataFrame([
-                {
-                    "SKU": sku,
-                    "ROP": datos["politicas"].get("rop_original", 0),
-                    "EOQ": datos["politicas"].get("eoq", 0),
-                    "Safety Stock": datos["politicas"].get("safety_stock", 0)
-                }
-                for sku, datos in resultados.items()
-            ])
+        demanda_total = df_hist.groupby('sku')[['demanda_real', 'demanda_limpia']].sum().reset_index()
+        demanda_total.columns = ['SKU', 'Demanda Real 12M', 'Demanda Limpia 12M']
+
+        # --- Cargar políticas desde resultados_inventario ---
+        resultados = st.session_state["resultados_inventario"]
+        politicas_df = pd.DataFrame([
+            {
+                "SKU": sku,
+                "ROP": datos["politicas"].get("rop_original", 0),
+                "EOQ": datos["politicas"].get("eoq", 0),
+                "Safety Stock": datos["politicas"].get("safety_stock", 0)
+            }
+            for sku, datos in resultados.items()
+            if datos.get("politicas") is not None
+        ])
 
         df_contexto = resumen_forecast \
             .merge(stock_final, on='SKU', how='left') \
             .merge(compras, on='SKU', how='left') \
             .merge(perdidas, on='SKU', how='left') \
-            .merge(tasa_quiebre, on='SKU', how='left')
-
-        if not politicas_df.empty:
-            df_contexto = df_contexto.merge(politicas_df, on="SKU", how="left")
+            .merge(tasa_quiebre, on='SKU', how='left') \
+            .merge(demanda_total, on='SKU', how='left') \
+            .merge(politicas_df, on='SKU', how='left')
 
         df_contexto = df_contexto.fillna(0)
         st.session_state['contexto_negocio_por_sku'] = df_contexto
@@ -132,6 +138,8 @@ def generar_contexto_negocio(df_forecast, df_proyeccion, df_hist):
                 f"   • Unidades perdidas históricas: {int(row['Unidades Perdidas'])}\n"
                 f"   • Pérdida histórica: € {int(row['Pérdida Hist. (€)'])}\n"
                 f"   • Tasa de quiebre: {row['Tasa de Quiebre (%)']:.1f}%\n"
+                f"   • Demanda real 12M: {int(row['Demanda Real 12M'])}\n"
+                f"   • Demanda limpia 12M: {int(row['Demanda Limpia 12M'])}\n"
                 f"   • ROP: {int(row['ROP'])}, EOQ: {int(row['EOQ'])}, Safety Stock: {int(row['Safety Stock'])}\n\n"
             )
 

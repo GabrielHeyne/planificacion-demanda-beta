@@ -135,58 +135,7 @@ def responder_general(pregunta):
     contexto = st.session_state.get("contexto_negocio_general", {})
     pregunta_limpia = pregunta.lower()
 
-    # Unidades a comprar
-    if "comprar" in pregunta_limpia and all(p not in pregunta_limpia for p in ["excel", "tabla", "descargar"]):
-        return (
-            f"🛒 En total, deberías comprar **{contexto.get('Total Unidades a Comprar', 0):,} unidades** "
-            f"distribuidas en **{contexto.get('Total SKUs a Comprar', 0):,} SKUs**."
-        )
-
-    # Costo total de compra
-    if "costo" in pregunta_limpia or "cuánto cuesta" in pregunta_limpia:
-        return f"💰 El costo total estimado de fabricación para la compra es de **€{contexto.get('Costo Total Compra (€)', 0):,}**."
-
-    # Unidades en camino
-    if any(p in pregunta_limpia for p in ["camino", "llegan", "en tránsito", "vienen"]):
-        return f"🚚 Actualmente hay **{contexto.get('Total Unidades en Camino', 0):,} unidades en camino**."
-
-    # Stock total
-    if "stock" in pregunta_limpia or "inventario total" in pregunta_limpia or "disponible" in pregunta_limpia:
-        df_stock = st.session_state.get("stock_actual", pd.DataFrame())
-        total = int(df_stock['stock'].sum()) if not df_stock.empty else 0
-        return f"📦 El stock actual total es de **{total:,} unidades**."
-
-    # Unidades vendidas
-    if any(p in pregunta_limpia for p in ["vendidas", "se ha vendido", "demanda real", "unidades vendidas"]):
-        df_demand = st.session_state.get("demanda_limpia", pd.DataFrame())
-        total_vendidas = int(df_demand["demanda"].sum()) if not df_demand.empty else 0
-        return f"📈 En los últimos 12 meses se han vendido **{total_vendidas:,} unidades**."
-
-    # Unidades perdidas
-    if "perdidas" in pregunta_limpia or "quebradas" in pregunta_limpia or "no se vendieron" in pregunta_limpia:
-        total_perdidas = contexto.get("Total Unidades Perdidas", None)
-        if total_perdidas is None:
-            df_hist = st.session_state.get("resumen_historico", pd.DataFrame())
-            total_perdidas = int(df_hist["unidades_perdidas"].sum()) if not df_hist.empty else 0
-        return f"🔻 Se han perdido **{total_perdidas:,} unidades** por quiebres de stock."
-
-    # Pérdidas en euros
-    if "euros" in pregunta_limpia or "valor perdido" in pregunta_limpia or "venta perdida" in pregunta_limpia:
-        df_hist = st.session_state.get("resumen_historico", pd.DataFrame())
-        perdidas_eur = int(df_hist["valor_perdido_euros"].sum()) if not df_hist.empty else 0
-        return f"💸 La pérdida total estimada en euros por quiebres ha sido de **€{perdidas_eur:,}**."
-
-    # Tasa de quiebre
-    if "tasa de quiebre" in pregunta_limpia or "porcentaje perdido" in pregunta_limpia or "nivel de servicio" in pregunta_limpia:
-        df_hist = st.session_state.get("resumen_historico", pd.DataFrame())
-        if not df_hist.empty:
-            perdidas = df_hist["unidades_perdidas"].sum()
-            vendidas = df_hist["demanda_real"].sum()
-            tasa = (perdidas / (vendidas + perdidas) * 100) if (vendidas + perdidas) > 0 else 0
-            return f"📉 La tasa de quiebre acumulada es de **{tasa:.1f}%**."
-        return "No se pudo calcular la tasa de quiebre porque no hay datos históricos suficientes."
-
-    # Descargables
+    # --- Descargables (Excel) ---
     if any(p in pregunta_limpia for p in ["excel", "descargar", "tabla"]):
         if "comprar" in pregunta_limpia:
             df = generar_excel_compras()
@@ -194,7 +143,7 @@ def responder_general(pregunta):
             st.dataframe(df, use_container_width=True)
             st.download_button("📥 Descargar productos a comprar", df.to_csv(index=False).encode("utf-8"), "productos_a_comprar.csv", "text/csv")
             return "📄 Aquí tienes los productos que necesitas comprar."
-        elif "histórica" in pregunta_limpia or "demanda pasada" in pregunta_limpia:
+        elif "histórica" in pregunta_limpia or "demanda pasada" in pregunta_limpia or "real" in pregunta_limpia:
             df = generar_excel_demanda_historica()
             st.markdown("### 📋 Vista previa: Demanda Histórica")
             st.dataframe(df.head(50), use_container_width=True)
@@ -206,12 +155,83 @@ def responder_general(pregunta):
             st.dataframe(df, use_container_width=True)
             st.download_button("📥 Descargar políticas de inventario", df.to_csv(index=False).encode("utf-8"), "politicas_inventario.csv", "text/csv")
             return "📄 Aquí tienes las políticas de inventario por SKU."
-        elif "forecast" in pregunta_limpia or "proyección" in pregunta_limpia:
+        elif "forecast" in pregunta_limpia or "proyección" in pregunta_limpia or "pronóstico" in pregunta_limpia:
             df = generar_excel_demanda_forecast()
             st.markdown("### 📋 Vista previa: Demanda y Forecast")
             st.dataframe(df.head(50), use_container_width=True)
             st.download_button("📥 Descargar demanda y forecast", df.to_csv(index=False).encode("utf-8"), "forecast_y_demanda.csv", "text/csv")
             return "📄 Aquí tienes la demanda y forecast por SKU."
+
+    # --- Unidades a comprar ---
+    if any(p in pregunta_limpia for p in ["cuántos comprar", "necesito comprar", "qué comprar", "unidades a comprar", "productos a reponer", "cuántas unidades debo", "reposición total", "reponer"]):
+        return (
+            f"🛒 En total, deberías comprar **{contexto.get('Total Unidades a Comprar', 0):,} unidades** "
+            f"distribuidas en **{contexto.get('Total SKUs a Comprar', 0):,} SKUs**."
+        )
+
+    # --- Costo total de fabricación ---
+    if any(p in pregunta_limpia for p in ["costo", "cuánto cuesta", "valor total", "precio total", "fabricación total"]):
+        return f"💰 El costo total estimado de fabricación para la compra es de **€{contexto.get('Costo Total Compra (€)', 0):,}**."
+
+    # --- Unidades en camino ---
+    if any(p in pregunta_limpia for p in ["camino", "llegan", "en tránsito", "vienen", "reposiciones", "en viaje"]):
+        return f"🚚 Actualmente hay **{contexto.get('Total Unidades en Camino', 0):,} unidades en camino**."
+
+    # --- Stock total actual ---
+    if any(p in pregunta_limpia for p in ["stock total", "inventario total", "cuánto tengo", "existencias", "cuánto hay disponible", "total disponible"]):
+        df_stock = st.session_state.get("stock_actual", pd.DataFrame())
+        total = int(df_stock['stock'].sum()) if not df_stock.empty else 0
+        return f"📦 El stock actual total es de **{total:,} unidades**."
+
+    # --- Unidades vendidas / Demanda real total ---
+    if any(p in pregunta_limpia for p in ["vendidas", "venta real", "demanda real", "cuánto se ha vendido", "demanda histórica", "ventas totales"]):
+        df_demand = st.session_state.get("demanda_limpia", pd.DataFrame())
+        total_vendidas = int(df_demand["demanda"].sum()) if not df_demand.empty else 0
+        return f"📈 En los últimos 12 meses se han vendido **{total_vendidas:,} unidades**."
+
+    # --- Unidades perdidas ---
+    if any(p in pregunta_limpia for p in ["pérdidas", "perdidas", "quebradas", "no se vendieron", "unidades que faltaron", "productos perdidos"]):
+        total_perdidas = contexto.get("Total Unidades Perdidas", None)
+        if total_perdidas is None:
+            df_hist = st.session_state.get("resumen_historico", pd.DataFrame())
+            total_perdidas = int(df_hist["unidades_perdidas"].sum()) if not df_hist.empty else 0
+        return f"🔻 Se han perdido **{total_perdidas:,} unidades** por quiebres de stock."
+
+    # --- Pérdidas en euros ---
+    if any(p in pregunta_limpia for p in ["euros", "valor perdido", "venta perdida", "pérdida económica"]):
+        df_hist = st.session_state.get("resumen_historico", pd.DataFrame())
+        perdidas_eur = int(df_hist["valor_perdido_euros"].sum()) if not df_hist.empty else 0
+        return f"💸 La pérdida total estimada en euros por quiebres ha sido de **€{perdidas_eur:,}**."
+
+    # --- Tasa de quiebre general ---
+    if any(p in pregunta_limpia for p in ["tasa de quiebre", "porcentaje perdido", "nivel de servicio", "break rate"]):
+        df_hist = st.session_state.get("resumen_historico", pd.DataFrame())
+        if not df_hist.empty:
+            perdidas = df_hist["unidades_perdidas"].sum()
+            vendidas = df_hist["demanda_real"].sum()
+            tasa = (perdidas / (vendidas + perdidas) * 100) if (vendidas + perdidas) > 0 else 0
+            return f"📉 La tasa de quiebre acumulada es de **{tasa:.1f}%**."
+        return "No se pudo calcular la tasa de quiebre porque no hay datos históricos suficientes."
+
+    # --- Top 10 productos con más pérdidas ---
+    if any(p in pregunta_limpia for p in ["top pérdidas","mayor pérdidas","mayor perdidas", "más pérdidas", "más se pierde", "productos que más se pierden", "quiebre alto","top 10 pérdida", "top 10 pérdidas","ranking pérdidas"]):
+        df_hist = st.session_state.get("resumen_historico", pd.DataFrame())
+        if not df_hist.empty:
+            top = df_hist.groupby("sku")["unidades_perdidas"].sum().sort_values(ascending=False).head(10).reset_index()
+            respuesta = "🔝 Top 10 SKUs con más unidades perdidas:\n\n"
+            for i, row in top.iterrows():
+                respuesta += f"{i+1}. {row['sku']}: {int(row['unidades_perdidas'])} unidades perdidas\n"
+            return respuesta
+
+    # --- Top 10 productos más vendidos ---
+    if any(p in pregunta_limpia for p in ["top ventas", "más vendidos", "productos más vendidos", "ventas altas", "productos top ventas","skus más vendidos","mayor venta","top 10 ventas"]):
+        df_hist = st.session_state.get("resumen_historico", pd.DataFrame())
+        if not df_hist.empty:
+            top = df_hist.groupby("sku")["demanda_real"].sum().sort_values(ascending=False).head(10).reset_index()
+            respuesta = "🏆 Top 10 SKUs más vendidos (demanda real):\n\n"
+            for i, row in top.iterrows():
+                respuesta += f"{i+1}. {row['sku']}: {int(row['demanda_real'])} unidades vendidas\n"
+            return respuesta
 
     return None  # delegar a OpenAI si no se detecta intención
 
