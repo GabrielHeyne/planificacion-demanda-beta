@@ -4,6 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta
+import os
 
 st.set_page_config(layout="wide")
 
@@ -11,31 +12,30 @@ st.set_page_config(layout="wide")
 def load_css():
     with open("utils/style.css") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
-
-# Cargar el CSS
 load_css()
 
-# Render logo
+# Logo lateral
 from utils import render_logo_sidebar  
 render_logo_sidebar()
 
 st.markdown('<h1 style="font-size: 24px; margin-bottom: 2px; font-weight: 500;">DEMANDA TOTAL Y QUIEBRES</h1>', unsafe_allow_html=True)
 
-# --- Cargar demanda limpia desde session_state ---
-@st.cache_data
+# --- Cargar demanda limpia desde session_state o desde disco ---
 def cargar_demanda():
-    return st.session_state.get('demanda_limpia', pd.DataFrame())
+    if "demanda_limpia" not in st.session_state or st.session_state["demanda_limpia"] is None:
+        if os.path.exists("data/demanda_limpia.xlsx"):
+            df = pd.read_excel("data/demanda_limpia.xlsx")
+            df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")
+            st.session_state["demanda_limpia"] = df
+    return st.session_state.get("demanda_limpia", pd.DataFrame())
 
 df = cargar_demanda()
-
-# ✅ Refuerza la persistencia de demanda limpia para el planificador IA
-st.session_state['demanda_limpia'] = df
 
 if df.empty:
     st.warning("⚠️ No se han cargado los datos limpios. Ve al menú 'Carga Archivos' para hacerlo.")
     st.stop()
 
-
+# --- Continuación de tu código original ---
 df['fecha'] = pd.to_datetime(df['fecha'])
 df['semana'] = df['fecha'].dt.to_period('W').apply(lambda r: r.start_time)
 

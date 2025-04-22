@@ -18,20 +18,37 @@ def load_css():
 load_css()
 render_logo_sidebar()
 
-# --- Validaciones ---
-requisitos = ['forecast', 'demanda_limpia', 'stock_historico', 'stock_actual']
-for r in requisitos:
-    if r not in st.session_state or st.session_state[r] is None:
-        st.warning(f"⚠️ Faltan datos requeridos: {r}. Ve al módulo correspondiente.")
-        st.stop()
+# --- Función para cargar desde disco si no está en session_state ---
+def cargar_si_existe(clave, ruta, tipo='csv'):
+    if clave not in st.session_state or st.session_state[clave] is None:
+        if os.path.exists(ruta):
+            df = pd.read_excel(ruta) if tipo == 'excel' else pd.read_csv(ruta)
+            if 'fecha' in df.columns:
+                df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
+            if 'mes' in df.columns:
+                df['mes'] = pd.to_datetime(df['mes'], errors='coerce')
+            st.session_state[clave] = df
+    return st.session_state.get(clave, pd.DataFrame())
 
-# --- Carga de datos ---
-df_demand = st.session_state['demanda_limpia'].copy()
-df_forecast = st.session_state['forecast'].copy()
-df_stock_hist = st.session_state['stock_historico'].copy()
-df_stock_actual = st.session_state['stock_actual'].copy()
-df_repos = st.session_state.get('reposiciones', pd.DataFrame(columns=['sku', 'fecha', 'cantidad']))
-df_maestro = st.session_state.get('maestro', pd.DataFrame())
+# --- Cargar los datos (intenta desde memoria, y si no desde disco) ---
+df_demand = cargar_si_existe('demanda_limpia', 'data/demanda_limpia.xlsx', tipo='excel')
+df_forecast = cargar_si_existe('forecast', 'data/forecast.csv')
+df_stock_hist = cargar_si_existe('stock_historico', 'data/stock_historico.csv')
+df_stock_actual = cargar_si_existe('stock_actual', 'data/stock_actual.csv')
+df_repos = cargar_si_existe('reposiciones', 'data/reposiciones.csv')
+df_maestro = cargar_si_existe('maestro', 'data/maestro.csv')
+
+# --- Validación final de datos requeridos ---
+requisitos = {
+    'forecast': df_forecast,
+    'demanda_limpia': df_demand,
+    'stock_historico': df_stock_hist,
+    'stock_actual': df_stock_actual
+}
+faltantes = [k for k, v in requisitos.items() if v.empty]
+if faltantes:
+    st.warning(f"⚠️ Faltan datos requeridos: {', '.join(faltantes)}. Ve al módulo correspondiente.")
+    st.stop()
 
 # --- Filtro de SKU ---
 sku_options = sorted(set(df_demand['sku'].unique()) | set(df_forecast['sku'].unique()))

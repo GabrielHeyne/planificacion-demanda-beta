@@ -3,6 +3,7 @@ import streamlit as st
 from utils import render_logo_sidebar
 import plotly.graph_objects as go
 from modules.stock_projector import project_stock
+import os
 
 # --- Cargar estilo ---
 def load_css():
@@ -14,6 +15,13 @@ render_logo_sidebar()
 
 st.markdown("<h1 style='font-size: 26px; font-weight: 500;'>📦 PROYECCIÓN DE STOCK MENSUAL</h1>", unsafe_allow_html=True)
 st.markdown("<p style='font-size: 16px;'>Proyección de stock por SKU y análisis de pérdidas estimadas</p>", unsafe_allow_html=True)
+
+# --- Cargar forecast desde disco si está vacío ---
+if 'forecast' not in st.session_state:
+    if os.path.exists("data/forecast.csv"):
+        df_forecast = pd.read_csv("data/forecast.csv")
+        df_forecast['mes'] = pd.to_datetime(df_forecast['mes'])
+        st.session_state['forecast'] = df_forecast
 
 # --- Validaciones ---
 if 'forecast' not in st.session_state or st.session_state['forecast'] is None:
@@ -66,6 +74,8 @@ if df_resultado.empty:
 # ✅ Guardar la proyección para el planificador IA
 st.session_state['stock_proyectado'] = df_resultado
 
+# ✅ Guardar CSV de persistencia
+df_resultado.to_csv(f"data/proyeccion_stock_{sku_sel}.csv", index=False)
 
 # --- KPIs visuales ---
 st.markdown("<div class='titulo-con-fondo'>📌 Información del Producto Seleccionado</div>", unsafe_allow_html=True)
@@ -177,8 +187,7 @@ if 'stock_historico' in st.session_state and st.session_state['stock_historico']
         )
         st.plotly_chart(fig_hist, use_container_width=True)
 
-
-
+# --- Descargar CSV ---
 def generar_csv(df):
     df_export = df.copy()
     df_export.columns = [col.replace("_", " ").capitalize() for col in df_export.columns]

@@ -5,6 +5,7 @@ from modules.inventory_managment import calcular_politicas_inventario
 from modules.evaluar_compra_sku import evaluar_compra_sku
 from dateutil.relativedelta import relativedelta
 import io
+import os
 
 # --- Cargar estilos y logo ---
 def load_css():
@@ -17,19 +18,33 @@ render_logo_sidebar()
 st.markdown("<h1 style='font-size: 26px; font-weight: 500;'>📦 GESTIÓN DE INVENTARIOS</h1>", unsafe_allow_html=True)
 st.markdown("<p style='font-size: 16px;'>Revisa políticas de inventario por SKU y un resumen general de compras sugeridas</p>", unsafe_allow_html=True)
 
-# --- Validaciones básicas ---
-if 'forecast' not in st.session_state or st.session_state['forecast'] is None:
+# --- Función para cargar desde disco si no está en session_state ---
+def cargar_si_existe(clave, ruta, tipo='csv'):
+    if clave not in st.session_state or st.session_state[clave] is None:
+        if os.path.exists(ruta):
+            df = pd.read_excel(ruta) if tipo == 'excel' else pd.read_csv(ruta)
+            if 'fecha' in df.columns:
+                df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
+            if 'cantidad' in df.columns:
+                df['cantidad'] = pd.to_numeric(df['cantidad'], errors='coerce').fillna(0).astype(int)
+            if 'stock' in df.columns:
+                df['stock'] = pd.to_numeric(df['stock'], errors='coerce').fillna(0).astype(int)
+            st.session_state[clave] = df
+            return df
+    return st.session_state.get(clave, pd.DataFrame())
+
+# --- Bases de datos ---
+df_forecast = cargar_si_existe('forecast', 'data/forecast.csv')
+df_maestro = cargar_si_existe('maestro', 'data/maestro.csv')
+df_demanda_limpia = cargar_si_existe('demanda_limpia', 'data/demanda_limpia.xlsx', tipo='excel')
+df_stock = cargar_si_existe('stock_actual', 'data/stock_actual.csv')
+df_repos = cargar_si_existe('reposiciones', 'data/reposiciones.csv')
+
+if df_forecast.empty:
     st.warning("⚠️ No se ha generado el forecast aún.")
     st.stop()
 
-# --- Bases de datos ---
-df_forecast = st.session_state['forecast'].copy()
 df_forecast['mes'] = pd.to_datetime(df_forecast['mes'])
-
-df_maestro = st.session_state.get('maestro', pd.DataFrame())
-df_demanda_limpia = st.session_state.get('demanda_limpia', pd.DataFrame())
-df_stock = st.session_state.get('stock_actual', pd.DataFrame())
-df_repos = st.session_state.get('reposiciones', pd.DataFrame())
 
 # --- Cálculo de resumen general + tabla por SKU ---
 fecha_actual = pd.to_datetime("today").replace(day=1)
@@ -138,13 +153,13 @@ st.dataframe(df_resumen, use_container_width=True)
 output = io.BytesIO()
 with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
     df_resumen.to_excel(writer, index=False, sheet_name="Resumen Inventario")
-    writer.close()
-    st.download_button(
-        label="📥 Descargar Excel",
-        data=output.getvalue(),
-        file_name="resumen_inventario.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+
+st.download_button(
+    label="📥 Descargar Excel",
+    data=output.getvalue(),
+    file_name="resumen_inventario.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
 
 # --- Detalle por SKU con tarjetas ---
 sku_sel = st.selectbox("Selecciona un SKU para ver el detalle", sorted(df_forecast['sku'].unique()))
