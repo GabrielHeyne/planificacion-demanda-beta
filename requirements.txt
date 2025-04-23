@@ -5,4 +5,7 @@ openpyxl
 xlsxwriter
 openai>=1.0.0
 unidecode
+statsmodels
+numpy
+
 
