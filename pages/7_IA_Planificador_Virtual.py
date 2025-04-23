@@ -1,10 +1,10 @@
 import streamlit as st
 import pandas as pd
+import os
 from utils import render_logo_sidebar
 from openai import OpenAI
 from modules.resumen_utils import generar_contexto_negocio
-from modules.ia_utils import responder_general  # ✅ IMPORTACIÓN CORRECTA
-import os
+from modules.ia_utils import responder_general
 
 # --- Configuración general ---
 st.set_page_config(page_title="Planificador Virtual", layout="wide")
@@ -18,6 +18,7 @@ load_css()
 
 # --- Cliente OpenAI actualizado ---
 client = OpenAI(api_key=st.secrets["openai"]["api_key"])
+MODELO_OPENAI = "gpt-3.5-turbo"  # Cambiar a "gpt-4" si lo necesitas
 
 # --- Cargar desde disco si no está en session_state ---
 def cargar_si_existe(clave, ruta, tipo='csv'):
@@ -36,7 +37,6 @@ faltantes = []
 if df_forecast.empty: faltantes.append("forecast")
 if df_stock_proyectado.empty: faltantes.append("stock_proyectado")
 if df_resumen_historico.empty: faltantes.append("resumen_historico")
-
 if faltantes:
     st.warning(f"⚠️ Faltan datos clave: {faltantes}")
     st.stop()
@@ -70,26 +70,9 @@ for msg in st.session_state.chat_history[1:]:
     elif msg["role"] == "assistant":
         st.chat_message("assistant").write(msg["content"])
 
-# --- Funciones de exportación ---
-def generar_excel_compras():
-    df = st.session_state.get("contexto_negocio_por_sku", pd.DataFrame())
-    return df[df["Unidades a Comprar"] > 0][["SKU", "Unidades a Comprar"]]
-
-def generar_excel_demanda_historica():
-    df = st.session_state.get("demanda_limpia", pd.DataFrame())
-    return df[["sku", "fecha", "demanda", "demanda_sin_outlier"]]
-
-def generar_excel_politicas():
-    df = st.session_state.get("contexto_negocio_por_sku", pd.DataFrame())
-    return df[["SKU", "ROP", "EOQ", "Safety Stock"]]
-
-def generar_excel_demanda_forecast():
-    df = st.session_state.get("forecast", pd.DataFrame())
-    return df[["sku", "mes", "demanda", "demanda_limpia", "forecast", "tipo_mes"]]
-
 # --- Responder por SKU ---
 def responder_con_sku(sku, pregunta):
-    st.session_state["último_sku_utilizado"] = sku
+    st.session_state["ultimo_sku_utilizado"] = sku
     df = st.session_state["contexto_negocio_por_sku"]
     fila = df[df["SKU"] == sku]
     if fila.empty:
@@ -109,7 +92,7 @@ def responder_con_sku(sku, pregunta):
     pregunta_limpia = pregunta.lower()
 
     if any(p in pregunta_limpia for p in ["cuánto", "cuantas", "comprar", "reponer", "necesito"]):
-        return f"🛒 Deberías comprar aproximadamente **{unidades_comprar} unidades** del SKU {sku}."
+        return f"🍚 Deberías comprar aproximadamente **{unidades_comprar} unidades** del SKU {sku}."
     if any(p in pregunta_limpia for p in ["stock", "inventario", "existencias", "disponible"]):
         return f"📦 El stock proyectado del SKU {sku} es de **{stock_proj} unidades**."
     if any(p in pregunta_limpia for p in ["forecast", "demanda", "pronóstico", "previsión"]):
@@ -124,7 +107,7 @@ def responder_con_sku(sku, pregunta):
         return f"🛡️ El inventario de seguridad (safety stock) del SKU {sku} es **{safety} unidades**."
 
     return (
-        f"🔍 Información del SKU {sku}:\n"
+        f"🔍 Información del SKU {sku}:"
         f"• Forecast mensual promedio: {forecast} unidades\n"
         f"• Stock proyectado: {stock_proj} unidades\n"
         f"• Unidades perdidas históricas: {perdidas} unidades\n"
@@ -141,7 +124,6 @@ if user_input:
     st.session_state.chat_history.append({"role": "user", "content": user_input})
     st.chat_message("user").write(user_input)
 
-    # Detectar SKU
     sku_detectado = None
     posibles_skus = df_context["SKU"].astype(str).str.upper().tolist()
     mensaje = user_input.upper().replace("-", "").replace(",", "").replace(":", "")
@@ -154,17 +136,23 @@ if user_input:
 
     if sku_detectado:
         respuesta = responder_con_sku(sku_detectado, user_input)
-    elif "último_sku_utilizado" in st.session_state:
-        respuesta = responder_con_sku(st.session_state["último_sku_utilizado"], user_input)
+    elif "ultimo_sku_utilizado" in st.session_state:
+        respuesta = responder_con_sku(st.session_state["ultimo_sku_utilizado"], user_input)
     else:
         respuesta = responder_general(user_input)
         if respuesta is None:
             with st.spinner("Pensando..."):
-                response = client.chat.completions.create(
-                    model="gpt-4",
-                    messages=st.session_state.chat_history
-                )
-                respuesta = response.choices[0].message.content
+                try:
+                    if user_input.strip().lower() in ["gracias", "ok", "vale", "perfecto"]:
+                        respuesta = "✨ Con gusto! 😊"
+                    else:
+                        response = client.chat.completions.create(
+                            model=MODELO_OPENAI,
+                            messages=st.session_state.chat_history[-20:]
+                        )
+                        respuesta = response.choices[0].message.content
+                except Exception as e:
+                    respuesta = f"❌ Error inesperado: {str(e)}"
 
     st.session_state.chat_history.append({"role": "assistant", "content": respuesta})
     st.chat_message("assistant").write(respuesta)
@@ -173,5 +161,5 @@ if user_input:
 st.markdown("<hr style='margin-top: 30px;'>", unsafe_allow_html=True)
 if st.button("🔄 Reiniciar conversación"):
     st.session_state.pop("chat_history", None)
-    st.session_state.pop("último_sku_utilizado", None)
+    st.session_state.pop("ultimo_sku_utilizado", None)
     st.rerun()
