@@ -121,18 +121,21 @@ meses_validos = meses_completos.sort_values().iloc[-3:]
 df_demand_3m = df_demand[df_demand['mes'].isin(meses_validos)]
 demanda_promedio_mensual = int(df_demand_3m.groupby('mes')['demanda'].sum().mean())
 
-# --- KPIs adicionales desde df_futuro ---
-df_compras_kpi = df_futuro.copy()
-df_compras_kpi = df_compras_kpi.groupby('sku').agg({
-    'forecast': 'sum',
-    'stock_final_mes': 'last'
-}).reset_index()
+# ✅ KPIs de compras desde session_state['politicas_inventario'] (Gestión Inventarios)
+politicas_df = st.session_state.get("politicas_inventario", pd.DataFrame())
 
-df_compras_kpi['accion'] = df_compras_kpi.apply(lambda row: 'Comprar' if row['stock_final_mes'] < row['forecast'] else 'No comprar', axis=1)
-df_compras_kpi['unidades_a_comprar'] = df_compras_kpi.apply(lambda row: row['forecast'] - row['stock_final_mes'] if row['accion'] == 'Comprar' else 0, axis=1)
+if not politicas_df.empty and "Acción" in politicas_df.columns:
+    if sku_select != "Todos":
+        politicas_filtradas = politicas_df[politicas_df["SKU"] == sku_select]
+    else:
+        politicas_filtradas = politicas_df
 
-total_skus_comprar = df_compras_kpi[df_compras_kpi['accion'] == 'Comprar'].shape[0]
-total_unidades_comprar = int(df_compras_kpi['unidades_a_comprar'].sum())
+    total_skus_comprar = politicas_filtradas[politicas_filtradas["Acción"] == "Comprar"].shape[0]
+    total_unidades_comprar = int(politicas_filtradas[politicas_filtradas["Acción"] == "Comprar"]["EOQ"].sum())
+else:
+    total_skus_comprar = 0
+    total_unidades_comprar = 0
+
 
 # --- Mostrar KPIs visuales ---
 kpi_style = """
@@ -170,17 +173,6 @@ col6.markdown(kpi_style.format(label="Venta Perdida (12M)", value=f"€ {perdida
 col7.markdown(kpi_style.format(label="Demanda Mensual (3M)", value=f"{demanda_promedio_mensual:,}"), unsafe_allow_html=True)
 col8.markdown(kpi_style.format(label="Tasa de Quiebre", value=f"{tasa_quiebre:.1f}%"), unsafe_allow_html=True)
 col10.markdown(kpi_style.format(label="Unidades a Comprar", value=f"{total_unidades_comprar:,}"), unsafe_allow_html=True)
-
-
-# 🔁 Desde aquí puedes continuar con tus gráficos y tablas como ya los tienes en el archivo original.
-
-
-# (Desde aquí continúan tus gráficos y tablas como ya los tienes...)
-
-
-
-
-# (Desde aquí continúan tus gráficos y tablas como ya los tienes...)
 
 
 # --- Espacio visual entre KPIs y gráficos ---
