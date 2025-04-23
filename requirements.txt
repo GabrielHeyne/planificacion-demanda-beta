@@ -3,5 +3,6 @@ plotly
 streamlit
 openpyxl
 xlsxwriter
-openai
+openai>=1.0.0
+unidecode
 

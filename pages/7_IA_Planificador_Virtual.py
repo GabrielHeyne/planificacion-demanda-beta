@@ -3,6 +3,7 @@ import pandas as pd
 from utils import render_logo_sidebar
 from openai import OpenAI
 from modules.resumen_utils import generar_contexto_negocio
+from modules.ia_utils import responder_general  # ✅ IMPORTACIÓN CORRECTA
 import os
 
 # --- Configuración general ---
@@ -18,7 +19,7 @@ load_css()
 # --- Cliente OpenAI actualizado ---
 client = OpenAI(api_key=st.secrets["openai"]["api_key"])
 
-# --- Función para cargar desde disco si no está en session_state ---
+# --- Cargar desde disco si no está en session_state ---
 def cargar_si_existe(clave, ruta, tipo='csv'):
     if clave not in st.session_state or st.session_state[clave] is None:
         if os.path.exists(ruta):
@@ -26,7 +27,7 @@ def cargar_si_existe(clave, ruta, tipo='csv'):
             st.session_state[clave] = df
     return st.session_state.get(clave, pd.DataFrame())
 
-# --- Validar datos requeridos (carga automática si faltan) ---
+# --- Cargar datos clave ---
 df_forecast = cargar_si_existe("forecast", "data/forecast.csv")
 df_stock_proyectado = cargar_si_existe("stock_proyectado", "data/proyeccion_futura.csv")
 df_resumen_historico = cargar_si_existe("resumen_historico", "data/resumen_historico.csv")
@@ -40,11 +41,6 @@ if faltantes:
     st.warning(f"⚠️ Faltan datos clave: {faltantes}")
     st.stop()
 
-# Guardar en session_state por si se cargaron desde disco
-st.session_state["forecast"] = df_forecast
-st.session_state["stock_proyectado"] = df_stock_proyectado
-st.session_state["resumen_historico"] = df_resumen_historico
-
 # --- Generar contexto del negocio ---
 try:
     texto = generar_contexto_negocio(df_forecast, df_stock_proyectado, df_resumen_historico)
@@ -53,23 +49,28 @@ except Exception as e:
     st.error(f"❌ Error al generar el contexto del negocio: {e}")
     st.stop()
 
+df_context = st.session_state.get("contexto_negocio_por_sku", pd.DataFrame())
+contexto_general = st.session_state.get("contexto_negocio_general", {})
+
+if df_context.empty or not contexto_general:
+    st.error("❌ No se pudo cargar completamente el contexto del negocio. Asegúrate de haber ejecutado 'Gestión de Inventarios'.")
+    st.stop()
+
 # --- Mostrar contexto ---
-if "contexto_negocio" in st.session_state:
-    with st.expander("📄 Ver resumen del contexto cargado", expanded=False):
-        st.code(st.session_state["contexto_negocio"], language="markdown")
+with st.expander("📄 Ver resumen del contexto cargado", expanded=False):
+    st.code(st.session_state["contexto_negocio"], language="markdown")
 
 # --- Inicializar historial de chat ---
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = [{"role": "system", "content": st.session_state["contexto_negocio"]}]
 
-# --- Mostrar historial anterior ---
 for msg in st.session_state.chat_history[1:]:
     if msg["role"] == "user":
         st.chat_message("user").write(msg["content"])
     elif msg["role"] == "assistant":
         st.chat_message("assistant").write(msg["content"])
 
-# --- Funciones para exportar datos ---
+# --- Funciones de exportación ---
 def generar_excel_compras():
     df = st.session_state.get("contexto_negocio_por_sku", pd.DataFrame())
     return df[df["Unidades a Comprar"] > 0][["SKU", "Unidades a Comprar"]]
@@ -86,11 +87,14 @@ def generar_excel_demanda_forecast():
     df = st.session_state.get("forecast", pd.DataFrame())
     return df[["sku", "mes", "demanda", "demanda_limpia", "forecast", "tipo_mes"]]
 
-# --- Respuesta por SKU ---
+# --- Responder por SKU ---
 def responder_con_sku(sku, pregunta):
     st.session_state["último_sku_utilizado"] = sku
     df = st.session_state["contexto_negocio_por_sku"]
-    row = df[df["SKU"] == sku].iloc[0]
+    fila = df[df["SKU"] == sku]
+    if fila.empty:
+        return f"❌ El SKU {sku} no se encuentra en el contexto cargado."
+    row = fila.iloc[0]
 
     forecast = row['Forecast Promedio Mensual']
     stock_proj = row['Stock Proyectado']
@@ -130,112 +134,6 @@ def responder_con_sku(sku, pregunta):
         f"• ROP: {rop}, EOQ: {eoq}, Safety Stock: {safety}"
     )
 
-# --- Respuesta general ---
-def responder_general(pregunta):
-    contexto = st.session_state.get("contexto_negocio_general", {})
-    pregunta_limpia = pregunta.lower()
-
-    # --- Descargables (Excel) ---
-    if any(p in pregunta_limpia for p in ["excel", "descargar", "tabla"]):
-        if "comprar" in pregunta_limpia:
-            df = generar_excel_compras()
-            st.markdown("### 📋 Vista previa: Productos a Comprar")
-            st.dataframe(df, use_container_width=True)
-            st.download_button("📥 Descargar productos a comprar", df.to_csv(index=False).encode("utf-8"), "productos_a_comprar.csv", "text/csv")
-            return "📄 Aquí tienes los productos que necesitas comprar."
-        elif "histórica" in pregunta_limpia or "demanda pasada" in pregunta_limpia or "real" in pregunta_limpia:
-            df = generar_excel_demanda_historica()
-            st.markdown("### 📋 Vista previa: Demanda Histórica")
-            st.dataframe(df.head(50), use_container_width=True)
-            st.download_button("📥 Descargar demanda histórica", df.to_csv(index=False).encode("utf-8"), "demanda_historica.csv", "text/csv")
-            return "📄 Aquí tienes la demanda histórica de todos los SKUs."
-        elif "política" in pregunta_limpia or "inventario" in pregunta_limpia:
-            df = generar_excel_politicas()
-            st.markdown("### 📋 Vista previa: Políticas de Inventario")
-            st.dataframe(df, use_container_width=True)
-            st.download_button("📥 Descargar políticas de inventario", df.to_csv(index=False).encode("utf-8"), "politicas_inventario.csv", "text/csv")
-            return "📄 Aquí tienes las políticas de inventario por SKU."
-        elif "forecast" in pregunta_limpia or "proyección" in pregunta_limpia or "pronóstico" in pregunta_limpia:
-            df = generar_excel_demanda_forecast()
-            st.markdown("### 📋 Vista previa: Demanda y Forecast")
-            st.dataframe(df.head(50), use_container_width=True)
-            st.download_button("📥 Descargar demanda y forecast", df.to_csv(index=False).encode("utf-8"), "forecast_y_demanda.csv", "text/csv")
-            return "📄 Aquí tienes la demanda y forecast por SKU."
-
-    # --- Unidades a comprar ---
-    if any(p in pregunta_limpia for p in ["cuántos comprar", "necesito comprar", "qué comprar", "unidades a comprar", "productos a reponer", "cuántas unidades debo", "reposición total", "reponer"]):
-        return (
-            f"🛒 En total, deberías comprar **{contexto.get('Total Unidades a Comprar', 0):,} unidades** "
-            f"distribuidas en **{contexto.get('Total SKUs a Comprar', 0):,} SKUs**."
-        )
-
-    # --- Costo total de fabricación ---
-    if any(p in pregunta_limpia for p in ["costo", "cuánto cuesta", "valor total", "precio total", "fabricación total"]):
-        return f"💰 El costo total estimado de fabricación para la compra es de **€{contexto.get('Costo Total Compra (€)', 0):,}**."
-
-    # --- Unidades en camino ---
-    if any(p in pregunta_limpia for p in ["camino", "llegan", "en tránsito", "vienen", "reposiciones", "en viaje"]):
-        return f"🚚 Actualmente hay **{contexto.get('Total Unidades en Camino', 0):,} unidades en camino**."
-
-    # --- Stock total actual ---
-    if any(p in pregunta_limpia for p in ["stock total", "inventario total", "cuánto tengo", "existencias", "cuánto hay disponible", "total disponible"]):
-        df_stock = st.session_state.get("stock_actual", pd.DataFrame())
-        total = int(df_stock['stock'].sum()) if not df_stock.empty else 0
-        return f"📦 El stock actual total es de **{total:,} unidades**."
-
-    # --- Unidades vendidas / Demanda real total ---
-    if any(p in pregunta_limpia for p in ["vendidas", "venta real", "demanda real", "cuánto se ha vendido", "demanda histórica", "ventas totales"]):
-        df_demand = st.session_state.get("demanda_limpia", pd.DataFrame())
-        total_vendidas = int(df_demand["demanda"].sum()) if not df_demand.empty else 0
-        return f"📈 En los últimos 12 meses se han vendido **{total_vendidas:,} unidades**."
-
-    # --- Unidades perdidas ---
-    if any(p in pregunta_limpia for p in ["pérdidas", "perdidas", "quebradas", "no se vendieron", "unidades que faltaron", "productos perdidos"]):
-        total_perdidas = contexto.get("Total Unidades Perdidas", None)
-        if total_perdidas is None:
-            df_hist = st.session_state.get("resumen_historico", pd.DataFrame())
-            total_perdidas = int(df_hist["unidades_perdidas"].sum()) if not df_hist.empty else 0
-        return f"🔻 Se han perdido **{total_perdidas:,} unidades** por quiebres de stock."
-
-    # --- Pérdidas en euros ---
-    if any(p in pregunta_limpia for p in ["euros", "valor perdido", "venta perdida", "pérdida económica"]):
-        df_hist = st.session_state.get("resumen_historico", pd.DataFrame())
-        perdidas_eur = int(df_hist["valor_perdido_euros"].sum()) if not df_hist.empty else 0
-        return f"💸 La pérdida total estimada en euros por quiebres ha sido de **€{perdidas_eur:,}**."
-
-    # --- Tasa de quiebre general ---
-    if any(p in pregunta_limpia for p in ["tasa de quiebre", "porcentaje perdido", "nivel de servicio", "break rate"]):
-        df_hist = st.session_state.get("resumen_historico", pd.DataFrame())
-        if not df_hist.empty:
-            perdidas = df_hist["unidades_perdidas"].sum()
-            vendidas = df_hist["demanda_real"].sum()
-            tasa = (perdidas / (vendidas + perdidas) * 100) if (vendidas + perdidas) > 0 else 0
-            return f"📉 La tasa de quiebre acumulada es de **{tasa:.1f}%**."
-        return "No se pudo calcular la tasa de quiebre porque no hay datos históricos suficientes."
-
-    # --- Top 10 productos con más pérdidas ---
-    if any(p in pregunta_limpia for p in ["top pérdidas","mayor pérdidas","mayor perdidas", "más pérdidas", "más se pierde", "productos que más se pierden", "quiebre alto","top 10 pérdida", "top 10 pérdidas","ranking pérdidas"]):
-        df_hist = st.session_state.get("resumen_historico", pd.DataFrame())
-        if not df_hist.empty:
-            top = df_hist.groupby("sku")["unidades_perdidas"].sum().sort_values(ascending=False).head(10).reset_index()
-            respuesta = "🔝 Top 10 SKUs con más unidades perdidas:\n\n"
-            for i, row in top.iterrows():
-                respuesta += f"{i+1}. {row['sku']}: {int(row['unidades_perdidas'])} unidades perdidas\n"
-            return respuesta
-
-    # --- Top 10 productos más vendidos ---
-    if any(p in pregunta_limpia for p in ["top ventas", "más vendidos", "productos más vendidos", "ventas altas", "productos top ventas","skus más vendidos","mayor venta","top 10 ventas"]):
-        df_hist = st.session_state.get("resumen_historico", pd.DataFrame())
-        if not df_hist.empty:
-            top = df_hist.groupby("sku")["demanda_real"].sum().sort_values(ascending=False).head(10).reset_index()
-            respuesta = "🏆 Top 10 SKUs más vendidos (demanda real):\n\n"
-            for i, row in top.iterrows():
-                respuesta += f"{i+1}. {row['sku']}: {int(row['demanda_real'])} unidades vendidas\n"
-            return respuesta
-
-    return None  # delegar a OpenAI si no se detecta intención
-
-
 # --- Entrada del usuario ---
 user_input = st.chat_input("Escribe tu pregunta...")
 
@@ -245,14 +143,12 @@ if user_input:
 
     # Detectar SKU
     sku_detectado = None
-    df_context = st.session_state.get("contexto_negocio_por_sku", pd.DataFrame())
-    if not df_context.empty:
-        posibles_skus = df_context["SKU"].astype(str).str.upper().tolist()
-        mensaje = user_input.upper().replace("-", "").replace(",", "").replace(":", "")
-        for sku in posibles_skus:
-            if sku.replace("-", "") in mensaje:
-                sku_detectado = sku
-                break
+    posibles_skus = df_context["SKU"].astype(str).str.upper().tolist()
+    mensaje = user_input.upper().replace("-", "").replace(",", "").replace(":", "")
+    for sku in posibles_skus:
+        if sku.replace("-", "") in mensaje:
+            sku_detectado = sku
+            break
 
     st.session_state.chat_history[0] = {"role": "system", "content": st.session_state["contexto_negocio"]}
 

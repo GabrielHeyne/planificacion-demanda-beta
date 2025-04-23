@@ -28,11 +28,12 @@ if st.session_state['demanda_limpia'] is None:
         st.success("✅ Archivo cargado y demanda limpia generada.")
         st.rerun()
 else:
-    df = st.session_state['demanda_limpia']
-    st.subheader("✅ Vista previa de la demanda limpia")
-    cols = [c for c in ['sku', 'fecha', 'demanda', 'demanda_sin_stockout', 'demanda_sin_outlier'] if c in df.columns]
-    st.dataframe(df[cols])
-    st.download_button("📥 Descargar Excel de Demanda Limpia", df.to_csv(index=False).encode(), "demanda_limpia.csv")
+    cleaned_demand_df = st.session_state['demanda_limpia']
+    st.markdown("<div style='font-size:16px;'>✅ <b>Vista previa de la demanda limpia</b></div>", unsafe_allow_html=True)
+    cols = [c for c in ['sku', 'fecha', 'demanda', 'demanda_sin_stockout', 'demanda_sin_outlier'] if c in cleaned_demand_df.columns]
+    st.dataframe(cleaned_demand_df[cols])
+    st.download_button("📥 Descargar Excel de Demanda Limpia", cleaned_demand_df.to_csv(index=False).encode(), "demanda_limpia.csv")
+
 
 # --- STOCK ACTUAL ---
 st.markdown("<div class='section-title'>📦 Carga de Stock Actual por SKU (Opcional)</div>", unsafe_allow_html=True)
@@ -50,8 +51,10 @@ if st.session_state['stock_actual'] is None:
         else:
             st.error(f"⚠️ Faltan columnas: {expected - set(df.columns)}")
 else:
-    st.subheader("✅ Vista previa del stock actual")
-    st.dataframe(st.session_state['stock_actual'])
+    stock_df = st.session_state['stock_actual']
+    st.markdown("<div style='font-size:16px;'>✅ <b>Vista previa del stock actual</b></div>", unsafe_allow_html=True)
+    st.dataframe(stock_df)
+
 
 # --- REPOSICIONES ---
 st.markdown("<div class='section-title'>📦 Carga de Reposiciones Futuras</div>", unsafe_allow_html=True)
@@ -70,8 +73,10 @@ if st.session_state['reposiciones'] is None:
         else:
             st.error(f"⚠️ Faltan columnas: {expected - set(df.columns)}")
 else:
-    st.subheader("✅ Vista previa de las reposiciones futuras")
-    st.dataframe(st.session_state['reposiciones'])
+    repos_df = st.session_state['reposiciones']
+    st.markdown("<div style='font-size:16px;'>✅ <b>Vista previa de las reposiciones futuras</b></div>", unsafe_allow_html=True)
+    st.dataframe(repos_df)
+
 
 # --- MAESTRO ---
 st.markdown("<div class='section-title'>📘 Carga del Maestro de Productos</div>", unsafe_allow_html=True)
@@ -89,8 +94,10 @@ if st.session_state['maestro'] is None:
         else:
             st.error(f"⚠️ Faltan columnas: {expected - set(df.columns)}")
 else:
-    st.subheader("✅ Vista previa del maestro de productos")
-    st.dataframe(st.session_state['maestro'])
+    maestro_df = st.session_state['maestro']
+    st.markdown("<div style='font-size:16px;'>✅ <b>Vista previa del maestro de productos</b></div>", unsafe_allow_html=True)
+    st.dataframe(maestro_df)
+
 
 # --- STOCK HISTÓRICO ---
 st.markdown("<div class='section-title'>📊 Carga de Stock Histórico</div>", unsafe_allow_html=True)
@@ -109,5 +116,7 @@ if st.session_state['stock_historico'] is None:
         else:
             st.error(f"⚠️ Faltan columnas: {expected - set(df.columns)}")
 else:
-    st.subheader("✅ Vista previa del stock histórico")
-    st.dataframe(st.session_state['stock_historico'])
+    historico_df = st.session_state['stock_historico']
+    st.markdown("<div style='font-size:16px;'>✅ <b>Vista previa del stock histórico</b></div>", unsafe_allow_html=True)
+    st.dataframe(historico_df)
+
