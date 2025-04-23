@@ -48,7 +48,7 @@ df_filtrado = df if sku_seleccionado == "TODOS" else df[df['sku'] == sku_selecci
 # --- Filtro de fechas ---
 fecha_min = df_filtrado['fecha'].min().date()
 fecha_max = df_filtrado['fecha'].max().date()
-fecha_min_defecto = max(fecha_min, (fecha_max - relativedelta(months=12)))
+fecha_min_defecto = max(fecha_min, (fecha_max - relativedelta(months=24)))
 rango_fecha = st.date_input("Selecciona el rango de fechas", value=(fecha_min_defecto, fecha_max), min_value=fecha_min, max_value=fecha_max)
 fecha_inicio = pd.to_datetime(rango_fecha[0])
 fecha_fin = pd.to_datetime(rango_fecha[1])

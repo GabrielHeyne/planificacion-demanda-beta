@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-from modules.forecast_engine import forecast_simple
+from modules.forecast_engine import forecast_engine, generar_comparativa_forecasts
 from utils import render_logo_sidebar
 import os
 
@@ -27,18 +27,22 @@ if 'demanda_limpia' not in st.session_state:
 st.success("📈 Demanda limpia cargada correctamente.")
 df_demanda = st.session_state['demanda_limpia']
 
-# --- Cargar forecast desde disco si está disponible ---
+# --- Forecast principal ---
 if 'forecast' not in st.session_state:
     if os.path.exists("data/forecast.csv"):
-        df_forecast = pd.read_csv("data/forecast.csv")
-        df_forecast['mes'] = pd.to_datetime(df_forecast['mes'])
-        st.session_state['forecast'] = df_forecast
-    else:
-        df_forecast = forecast_simple(df_demanda, lead_time_meses=4)
-        df_forecast.to_csv("data/forecast.csv", index=False)
-        st.session_state['forecast'] = df_forecast
+        os.remove("data/forecast.csv")
+    df_forecast = forecast_engine(df_demanda, lead_time_meses=4)
+    df_forecast.to_csv("data/forecast.csv", index=False)
+    st.session_state['forecast'] = df_forecast
 else:
     df_forecast = st.session_state['forecast']
+
+# --- Comparativa por métodos ---
+if 'forecast_comparativa' not in st.session_state:
+    df_comparativa = generar_comparativa_forecasts(df_demanda, horizonte_meses=6)
+    st.session_state['forecast_comparativa'] = df_comparativa
+else:
+    df_comparativa = st.session_state['forecast_comparativa']
 
 # --- Selección de SKU ---
 sku_seleccionado = st.selectbox("Selecciona un SKU", df_forecast['sku'].unique())
@@ -87,38 +91,82 @@ df_plot = df_filtrado.sort_values('mes')
 df_plot['mes_label'] = df_plot['mes'].dt.strftime('%b %Y')
 
 fig = go.Figure()
-fig.add_trace(go.Bar(x=df_plot['mes_label'], y=df_plot['demanda_limpia'], name='Demanda Limpia', marker_color='royalblue', text=df_plot['demanda_limpia'], textposition='outside'))
 
-df_forecast_total = df_plot[df_plot['tipo_mes'] != 'histórico'].sort_values('mes')
+# --- Demanda Limpia (barras) con texto horizontal fuera de la barra ---
+fig.add_trace(go.Bar(
+    x=df_plot['mes_label'],
+    y=df_plot['demanda_limpia'],
+    name='Demanda Limpia',
+    marker_color='royalblue',
+    text=df_plot['demanda_limpia'],
+    textposition='outside',     # Coloca los textos fuera de la barra
+    textangle=0,                # Fuerza orientación horizontal
+    cliponaxis=False
+))
+
+# --- Forecast proyectado (línea roja) ---
+df_forecast_total = df_plot[df_plot['tipo_mes'] != 'histórico']
 fig.add_trace(go.Scatter(
-    x=df_forecast_total['mes_label'], y=df_forecast_total['forecast'],
-    name='Forecast proyectado', mode='lines+markers+text',
-    line=dict(color='crimson', width=3), marker=dict(size=8),
-    text=df_forecast_total['forecast'], textposition='top center'
+    x=df_forecast_total['mes_label'],
+    y=df_forecast_total['forecast'],
+    name='Forecast proyectado',
+    mode='lines+markers+text',
+    line=dict(color='crimson', width=3),
+    marker=dict(size=8),
+    text=df_forecast_total['forecast'],
+    textposition='top center'
 ))
 
 fig.update_layout(
-    xaxis_title='Mes', yaxis_title='Unidades', legend_title='Tipo',
-    font_family='Poppins, sans-serif', xaxis_tickangle=45,
+    barmode='overlay',
+    xaxis_title='Mes',
+    yaxis_title='Unidades',
+    yaxis=dict(rangemode='tozero'),
+    font_family='Poppins, sans-serif',
+    xaxis_tickangle=45,
+    height=500,
+    margin=dict(l=40, r=40, t=60, b=80),
+    legend_title='Tipo',
     legend=dict(orientation='h', yanchor='bottom', y=1.05, xanchor='center', x=0.5)
 )
 
-st.markdown(f'<h1 style="font-size: 22px; margin-bottom: 2px; font-weight: 400; text-align: center;">📊 Gráfico: Demanda Limpia y Forecast para SKU: {sku_seleccionado}</h1>', unsafe_allow_html=True)
+st.markdown(
+    f'<h1 style="font-size: 22px; margin-bottom: 2px; font-weight: 400; text-align: center;">📊 Gráfico: Demanda Limpia y Forecast para SKU: {sku_seleccionado}</h1>',
+    unsafe_allow_html=True
+)
 st.plotly_chart(fig, use_container_width=True)
 
-# --- Tabla de detalle ---
-df_tabla = df_filtrado.copy()
-df_tabla['dpa_movil'] = df_tabla.apply(lambda row: f"{row['dpa_movil']:.2%}" if pd.notnull(row['dpa_movil']) and row['tipo_mes'] == 'backtest' else "–", axis=1)
-columnas_ordenadas = ['sku', 'mes', 'demanda', 'demanda_limpia', 'forecast', 'tipo_mes', 'dpa_movil']
-df_tabla = df_tabla[columnas_ordenadas]
 
-st.markdown(f'<h1 style="font-size: 20px; margin-top: 25px; margin-bottom: 10px; font-weight: 400; text-align: center;">📋 Detalle del Forecast para SKU: {sku_seleccionado}</h1>', unsafe_allow_html=True)
-st.dataframe(df_tabla)
+# --- Comparativa de métodos en columnas ---
+
+st.markdown(
+    f'<h1 style="font-size: 22px; margin-top: 40px; margin-bottom: 10px; font-weight: 500; text-align: center;">📊 Comparativa de Forecast por Método</h1>',
+    unsafe_allow_html=True
+)
+
+# Asegurarse de que forecast_comparativa esté disponible
+if 'forecast_comparativa' not in st.session_state:
+    st.error("No se encontró la tabla comparativa. Asegúrate de ejecutar el forecast nuevamente.")
+else:
+    df_comparativa = st.session_state['forecast_comparativa']
+    
+    # Filtrar solo para el SKU seleccionado
+    df_comp_sku = df_comparativa[df_comparativa['sku'] == sku_seleccionado].copy()
+
+    if df_comp_sku.empty:
+        st.warning("No hay datos disponibles para este SKU en la tabla comparativa.")
+    else:
+        st.dataframe(df_comp_sku, use_container_width=True)
+
+        # --- Descargar tabla comparativa ---
+        csv_comparativa = df_comp_sku.to_csv(index=False).encode('utf-8')
+        st.download_button("📥 Descargar Comparativa por Método", data=csv_comparativa, file_name=f"comparativa_forecast_{sku_seleccionado}.csv", mime="text/csv")
+
 
 # --- Descargar CSV ---
 def generar_csv_forecast(df):
-    df_export = df[['sku', 'mes', 'demanda', 'demanda_limpia', 'forecast', 'dpa_movil']].copy()
-    df_export.columns = ['SKU', 'Mes', 'Demanda Real', 'Demanda Limpia', 'Forecast', 'DPA Móvil']
+    df_export = df[['sku', 'mes', 'demanda', 'demanda_limpia', 'forecast', 'dpa_movil', 'metodo_forecast']].copy()
+    df_export.columns = ['SKU', 'Mes', 'Demanda Real', 'Demanda Limpia', 'Forecast', 'DPA Móvil', 'Método Forecast']
     return df_export.to_csv(index=False).encode('utf-8')
 
 csv_forecast = generar_csv_forecast(df_forecast)
