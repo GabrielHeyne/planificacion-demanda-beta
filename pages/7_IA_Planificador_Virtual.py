@@ -41,20 +41,28 @@ if faltantes:
     st.warning(f"⚠️ Faltan datos clave: {faltantes}")
     st.stop()
 
-# --- Generar contexto del negocio ---
+# ✅ Verificar y generar contexto si falta o está incompleto
 try:
-    texto = generar_contexto_negocio(df_forecast, df_stock_proyectado, df_resumen_historico)
-    st.session_state["contexto_negocio"] = texto
+    contexto_ok = (
+        "contexto_negocio_por_sku" in st.session_state and not st.session_state["contexto_negocio_por_sku"].empty and
+        "contexto_negocio_general" in st.session_state and bool(st.session_state["contexto_negocio_general"])
+    )
+    
+    if not contexto_ok:
+        texto = generar_contexto_negocio(df_forecast, df_stock_proyectado, df_resumen_historico)
+        st.session_state["contexto_negocio"] = texto
+
+    df_context = st.session_state["contexto_negocio_por_sku"]
+    contexto_general = st.session_state["contexto_negocio_general"]
+
+    if df_context.empty or not contexto_general:
+        st.error("❌ No se pudo generar el contexto del negocio correctamente. Asegúrate de tener todos los datos cargados.")
+        st.stop()
+
 except Exception as e:
-    st.error(f"❌ Error al generar el contexto del negocio: {e}")
+    st.error(f"❌ Error al generar o cargar el contexto del negocio: {e}")
     st.stop()
 
-df_context = st.session_state.get("contexto_negocio_por_sku", pd.DataFrame())
-contexto_general = st.session_state.get("contexto_negocio_general", {})
-
-if df_context.empty or not contexto_general:
-    st.error("❌ No se pudo cargar completamente el contexto del negocio. Asegúrate de haber ejecutado 'Gestión de Inventarios'.")
-    st.stop()
 
 # --- Mostrar contexto ---
 with st.expander("📄 Ver resumen del contexto cargado", expanded=False):
@@ -88,32 +96,40 @@ def responder_con_sku(sku, pregunta):
     rop = int(row.get("ROP", 0))
     eoq = int(row.get("EOQ", 0))
     safety = int(row.get("Safety Stock", 0))
+    demanda_real_12m = int(row.get("Demanda Real 12M", 0))
+    unidades_en_camino = int(row.get("Unidades en Camino", 0))
 
     pregunta_limpia = pregunta.lower()
 
-    if any(p in pregunta_limpia for p in ["cuánto", "cuantas", "comprar", "reponer", "necesito"]):
+    if "demanda" in pregunta_limpia and "hist" in pregunta_limpia:
+        return f"📊 La demanda histórica (últimos 12 meses) del SKU {sku} fue de **{demanda_real_12m} unidades**."
+    if any(p in pregunta_limpia for p in ["forecast", "proyección", "pronóstico", "previsión"]):
+        return f"📈 El forecast mensual promedio del SKU {sku} es de **{forecast} unidades**."
+    if any(p in pregunta_limpia for p in ["comprar", "reponer", "necesito"]):
         return f"🍚 Deberías comprar aproximadamente **{unidades_comprar} unidades** del SKU {sku}."
     if any(p in pregunta_limpia for p in ["stock", "inventario", "existencias", "disponible"]):
         return f"📦 El stock proyectado del SKU {sku} es de **{stock_proj} unidades**."
-    if any(p in pregunta_limpia for p in ["forecast", "demanda", "pronóstico", "previsión"]):
-        return f"📈 El forecast mensual promedio del SKU {sku} es de **{forecast} unidades**."
+    if any(p in pregunta_limpia for p in ["en camino", "transito", "tránsito", "reposiciones", "vienen", "llegan"]):
+        return f"🚚 Hay **{unidades_en_camino} unidades** en camino para el SKU {sku}."
     if any(p in pregunta_limpia for p in ["pérdida", "quiebre", "se perdieron"]):
         return f"💸 El SKU {sku} ha tenido **{perdidas} unidades perdidas**, equivalente a €{perdidas_eur}, con una tasa de quiebre de **{tasa_quiebre:.1f}%**."
-    if any(p in pregunta_limpia for p in ["rop", "punto de reposición"]):
-        return f"🔁 El Punto de Reposición (ROP) del SKU {sku} es **{rop} unidades**."
-    if "eoq" in pregunta_limpia or "cantidad óptima" in pregunta_limpia:
-        return f"📦 La cantidad óptima de pedido (EOQ) del SKU {sku} es **{eoq} unidades**."
-    if "inventario de seguridad" in pregunta_limpia or "safety stock" in pregunta_limpia:
-        return f"🛡️ El inventario de seguridad (safety stock) del SKU {sku} es **{safety} unidades**."
+    if any(p in pregunta_limpia for p in ["política", "políticas", "eoq", "rop", "safety stock"]):
+        return (
+            f"📦 Las políticas de inventario para el SKU {sku} son:\n"
+            f"• Punto de Reposición (ROP): **{rop} unidades**\n"
+            f"• Cantidad Óptima de Pedido (EOQ): **{eoq} unidades**\n"
+            f"• Inventario de Seguridad (Safety Stock): **{safety} unidades**"
+        )
 
     return (
-        f"🔍 Información del SKU {sku}:"
+        f"🔍 Información del SKU {sku}:\n"
         f"• Forecast mensual promedio: {forecast} unidades\n"
         f"• Stock proyectado: {stock_proj} unidades\n"
         f"• Unidades perdidas históricas: {perdidas} unidades\n"
         f"• Pérdida histórica: €{perdidas_eur}\n"
         f"• Tasa de quiebre: {tasa_quiebre:.1f}%\n"
         f"• Unidades a comprar: {unidades_comprar} unidades\n"
+        f"• Unidades en camino: {unidades_en_camino} unidades\n"
         f"• ROP: {rop}, EOQ: {eoq}, Safety Stock: {safety}"
     )
 
@@ -143,7 +159,13 @@ if user_input:
         if respuesta is None:
             with st.spinner("Pensando..."):
                 try:
-                    if user_input.strip().lower() in ["gracias", "ok", "vale", "perfecto"]:
+                    saludo_basico = ["hola", "buenas", "holi", "hey", "hello"]
+                    cierre_basico = ["gracias", "ok", "vale", "perfecto", "listo"]
+                    entrada = user_input.strip().lower()
+
+                    if any(palabra in entrada for palabra in saludo_basico):
+                        respuesta = "👋 ¡Hola! ¿En qué puedo ayudarte hoy con la planificación de inventarios?"
+                    elif entrada in cierre_basico:
                         respuesta = "✨ Con gusto! 😊"
                     else:
                         response = client.chat.completions.create(

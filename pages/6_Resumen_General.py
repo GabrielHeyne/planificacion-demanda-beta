@@ -406,3 +406,24 @@ with col_btn2:
         mime="text/csv",
         key="btn_descarga_fut"
     )
+
+# ✅ Cargar resultados_inventario desde politicas_inventario si existe
+if "politicas_inventario" in st.session_state:
+    df_politicas = st.session_state["politicas_inventario"]
+    resultados = {}
+    for _, row in df_politicas.iterrows():
+        resultados[row["SKU"]] = {
+            "stock_actual": row["Stock Actual"],
+            "unidades_en_camino": row["Reposiciones"],
+            "demanda_mensual": row["Demanda Mensual"],
+            "politicas": {
+                "rop_original": row["ROP"],
+                "eoq": row["EOQ"],
+                "safety_stock": row["Safety Stock"]
+            },
+            "accion": row["Acción"],
+            "unidades_sugeridas": row["EOQ"] if row["Acción"] == "Comprar" else 0,
+            "stock_final_simulado": row["Stock Proyectado (5M)"],
+            "costo_fabricacion": row["Costo Fabricación (€)"]
+        }
+    st.session_state["resultados_inventario"] = resultados

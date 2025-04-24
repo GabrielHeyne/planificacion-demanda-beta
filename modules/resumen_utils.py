@@ -104,7 +104,6 @@ def generar_contexto_negocio(df_forecast, df_proyeccion, df_hist):
         demanda_total = df_hist.groupby('sku')[['demanda_real', 'demanda_limpia']].sum().reset_index()
         demanda_total.columns = ['SKU', 'Demanda Real 12M', 'Demanda Limpia 12M']
 
-        # --- Cargar políticas desde resultados_inventario ---
         resultados = st.session_state["resultados_inventario"]
         politicas_df = pd.DataFrame([
             {
@@ -125,6 +124,15 @@ def generar_contexto_negocio(df_forecast, df_proyeccion, df_hist):
             .merge(demanda_total, on='SKU', how='left') \
             .merge(politicas_df, on='SKU', how='left')
 
+        # --- Agregar Unidades en Camino por SKU ---
+        repos = st.session_state.get("reposiciones", pd.DataFrame())
+        if not repos.empty:
+            unidades_en_camino_por_sku = repos.groupby('sku')['cantidad'].sum().reset_index()
+            unidades_en_camino_por_sku.columns = ['SKU', 'Unidades en Camino']
+            df_contexto = df_contexto.merge(unidades_en_camino_por_sku, on='SKU', how='left')
+        else:
+            df_contexto['Unidades en Camino'] = 0
+
         df_contexto = df_contexto.fillna(0)
         st.session_state['contexto_negocio_por_sku'] = df_contexto
 
@@ -140,15 +148,19 @@ def generar_contexto_negocio(df_forecast, df_proyeccion, df_hist):
                 f"   • Tasa de quiebre: {row['Tasa de Quiebre (%)']:.1f}%\n"
                 f"   • Demanda real 12M: {int(row['Demanda Real 12M'])}\n"
                 f"   • Demanda limpia 12M: {int(row['Demanda Limpia 12M'])}\n"
-                f"   • ROP: {int(row['ROP'])}, EOQ: {int(row['EOQ'])}, Safety Stock: {int(row['Safety Stock'])}\n\n"
+                f"   • ROP: {int(row['ROP'])}, EOQ: {int(row['EOQ'])}, Safety Stock: {int(row['Safety Stock'])}\n"
+                f"   • Unidades en Camino: {int(row['Unidades en Camino'])}\n\n"
             )
 
         st.session_state["contexto_negocio"] = texto
 
         # --- Generar contexto general agregado ---
+        skus_comprar = [sku for sku, datos in resultados.items() if datos["accion"] == "Comprar"]
+        total_unidades = sum(datos["unidades_sugeridas"] for sku, datos in resultados.items() if datos["accion"] == "Comprar")
+
         contexto_general = {}
-        contexto_general["Total Unidades a Comprar"] = int(df_contexto["Unidades a Comprar"].sum())
-        contexto_general["Total SKUs a Comprar"] = int((df_contexto["Unidades a Comprar"] > 0).sum())
+        contexto_general["Total Unidades a Comprar"] = total_unidades
+        contexto_general["Total SKUs a Comprar"] = len(skus_comprar)
 
         maestro = st.session_state.get("maestro", pd.DataFrame())
         if not maestro.empty:
@@ -158,7 +170,6 @@ def generar_contexto_negocio(df_forecast, df_proyeccion, df_hist):
         else:
             contexto_general["Costo Total Compra (€)"] = 0
 
-        repos = st.session_state.get("reposiciones", pd.DataFrame())
         if not repos.empty:
             contexto_general["Total Unidades en Camino"] = int(repos['cantidad'].sum())
             unidades_en_camino_por_sku = repos.groupby('sku')['cantidad'].sum().reset_index()
@@ -173,3 +184,4 @@ def generar_contexto_negocio(df_forecast, df_proyeccion, df_hist):
 
     except Exception as e:
         return f"No se pudo generar el contexto dinámico del negocio aún. Error: {e}"
+
