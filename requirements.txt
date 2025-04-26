@@ -7,5 +7,7 @@ openai>=1.0.0
 unidecode
 statsmodels
 numpy
+supabase
+python-dotenv
 
 

@@ -2,6 +2,7 @@ import pandas as pd
 import streamlit as st
 from modules.demand_cleaner import clean_demand
 from utils import render_logo_sidebar
+from utils.file_operations import upload_file_to_supabase, get_file_from_supabase, list_available_files
 
 # --- Estilos y logo ---
 def load_css():
@@ -19,8 +20,29 @@ for clave in ['demanda_limpia', 'stock_actual', 'reposiciones', 'maestro', 'stoc
 st.markdown("<div class='section-title'>📁 Carga de Archivos y Limpieza de Demanda</div>", unsafe_allow_html=True)
 
 if st.session_state['demanda_limpia'] is None:
+    # Show available files
+    available_files = list_available_files('demanda')
+    if available_files:
+        st.markdown("### Archivos disponibles")
+        for file in available_files:
+            if st.button(f"📄 {file['file_name']} ({file['upload_date']})"):
+                df = get_file_from_supabase('demanda', file['file_name'])
+                if df is not None:
+                    df['fecha'] = pd.to_datetime(df['fecha'])
+                    df = clean_demand(df)
+                    st.session_state['demanda_limpia'] = df
+                    st.success("✅ Archivo cargado y demanda limpia generada.")
+                    st.rerun()
+    
+    # File uploader
     archivo = st.file_uploader("Sube el archivo de demanda (CSV)", type="csv", key="uploader_demanda")
     if archivo:
+        # Upload to Supabase
+        success, file_name = upload_file_to_supabase(archivo, 'demanda')
+        if success:
+            st.success(f"✅ Archivo guardado en Supabase como: {file_name}")
+        
+        # Process the file
         df = pd.read_csv(archivo)
         df['fecha'] = pd.to_datetime(df['fecha'])
         df = clean_demand(df)
@@ -39,8 +61,27 @@ else:
 st.markdown("<div class='section-title'>📦 Carga de Stock Actual por SKU (Opcional)</div>", unsafe_allow_html=True)
 
 if st.session_state['stock_actual'] is None:
+    # Show available files
+    available_files = list_available_files('stock_actual')
+    if available_files:
+        st.markdown("### Archivos disponibles")
+        for file in available_files:
+            if st.button(f"📄 {file['file_name']} ({file['upload_date']})"):
+                df = get_file_from_supabase('stock_actual', file['file_name'])
+                if df is not None:
+                    st.session_state['stock_actual'] = df
+                    st.success("✅ Archivo cargado correctamente.")
+                    st.rerun()
+    
+    # File uploader
     archivo = st.file_uploader("Sube el archivo de stock actual (CSV)", type="csv", key="uploader_stock")
     if archivo:
+        # Upload to Supabase
+        success, file_name = upload_file_to_supabase(archivo, 'stock_actual')
+        if success:
+            st.success(f"✅ Archivo guardado en Supabase como: {file_name}")
+        
+        # Process the file
         df = pd.read_csv(archivo)
         expected = {'sku', 'descripcion', 'stock', 'fecha'}
         if expected.issubset(df.columns):
@@ -60,8 +101,27 @@ else:
 st.markdown("<div class='section-title'>📦 Carga de Reposiciones Futuras</div>", unsafe_allow_html=True)
 
 if st.session_state['reposiciones'] is None:
+    # Show available files
+    available_files = list_available_files('reposiciones')
+    if available_files:
+        st.markdown("### Archivos disponibles")
+        for file in available_files:
+            if st.button(f"📄 {file['file_name']} ({file['upload_date']})"):
+                df = get_file_from_supabase('reposiciones', file['file_name'])
+                if df is not None:
+                    st.session_state['reposiciones'] = df
+                    st.success("✅ Reposiciones cargadas.")
+                    st.rerun()
+    
+    # File uploader
     archivo = st.file_uploader("Sube el archivo de reposiciones (CSV)", type="csv", key="uploader_reposiciones")
     if archivo:
+        # Upload to Supabase
+        success, file_name = upload_file_to_supabase(archivo, 'reposiciones')
+        if success:
+            st.success(f"✅ Archivo guardado en Supabase como: {file_name}")
+        
+        # Process the file
         df = pd.read_csv(archivo)
         expected = {'sku', 'fecha', 'cantidad'}
         if expected.issubset(df.columns):
@@ -82,8 +142,27 @@ else:
 st.markdown("<div class='section-title'>📘 Carga del Maestro de Productos</div>", unsafe_allow_html=True)
 
 if st.session_state['maestro'] is None:
+    # Show available files
+    available_files = list_available_files('maestro')
+    if available_files:
+        st.markdown("### Archivos disponibles")
+        for file in available_files:
+            if st.button(f"📄 {file['file_name']} ({file['upload_date']})"):
+                df = get_file_from_supabase('maestro', file['file_name'])
+                if df is not None:
+                    st.session_state['maestro'] = df
+                    st.success("✅ Maestro cargado.")
+                    st.rerun()
+    
+    # File uploader
     archivo = st.file_uploader("Sube el archivo maestro (CSV)", type="csv", key="uploader_maestro")
     if archivo:
+        # Upload to Supabase
+        success, file_name = upload_file_to_supabase(archivo, 'maestro')
+        if success:
+            st.success(f"✅ Archivo guardado en Supabase como: {file_name}")
+        
+        # Process the file
         df = pd.read_csv(archivo)
         expected = {'sku', 'descripcion', 'costo_fabricacion', 'precio_venta', 'categoria'}
         if expected.issubset(df.columns):
@@ -103,8 +182,27 @@ else:
 st.markdown("<div class='section-title'>📊 Carga de Stock Histórico</div>", unsafe_allow_html=True)
 
 if st.session_state['stock_historico'] is None:
+    # Show available files
+    available_files = list_available_files('stock_historico')
+    if available_files:
+        st.markdown("### Archivos disponibles")
+        for file in available_files:
+            if st.button(f"📄 {file['file_name']} ({file['upload_date']})"):
+                df = get_file_from_supabase('stock_historico', file['file_name'])
+                if df is not None:
+                    st.session_state['stock_historico'] = df
+                    st.success("✅ Stock histórico cargado.")
+                    st.rerun()
+    
+    # File uploader
     archivo = st.file_uploader("Sube el archivo de stock histórico (CSV)", type="csv", key="uploader_stock_historico")
     if archivo:
+        # Upload to Supabase
+        success, file_name = upload_file_to_supabase(archivo, 'stock_historico')
+        if success:
+            st.success(f"✅ Archivo guardado en Supabase como: {file_name}")
+        
+        # Process the file
         df = pd.read_csv(archivo)
         expected = {'sku', 'fecha', 'stock'}
         if expected.issubset(df.columns):
