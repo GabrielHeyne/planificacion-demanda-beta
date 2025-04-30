@@ -63,6 +63,7 @@ def forecast_engine(df, lead_time_meses=3):
                 'demanda': row['demanda'],
                 'demanda_limpia': row['demanda_limpia'],
                 'forecast': np.nan,
+                'forecast_up': np.nan,
                 'tipo_mes': 'histórico',
                 'metodo_forecast': None
             })
@@ -99,8 +100,13 @@ def forecast_engine(df, lead_time_meses=3):
                 serie_bt = corte.set_index('mes')['demanda_limpia']
                 _, modelo_bt = metodo_forecast(serie_bt)
                 pred = modelo_bt.forecast(1)[0] if modelo_bt else serie_bt.tail(4).mean()
+                if pd.isna(pred) or pred < 0:
+                    pred = serie_bt.tail(3).mean()
+                if pd.isna(pred) or pred < 0:
+                    pred = 0
             except:
                 pred = 0
+
             demanda_real = df_valid[df_valid['mes'] == mes_objetivo]['demanda_limpia'].values[0]
             demanda_original = df_valid[df_valid['mes'] == mes_objetivo]['demanda'].values[0]
             resultados.append({
@@ -109,14 +115,17 @@ def forecast_engine(df, lead_time_meses=3):
                 'demanda': demanda_original,
                 'demanda_limpia': demanda_real,
                 'forecast': round(pred),
+                'forecast_up': np.nan,  # NO SE USA EN BACKTEST
                 'tipo_mes': 'backtest',
                 'metodo_forecast': mejor_modelo
             })
 
         # PROYECCIÓN
+        std_forecast = df_valid.sort_values('mes')['demanda_limpia'].tail(6).std()
         for mes_forecast in forecast_horizon:
             fecha_limite = mes_forecast - pd.DateOffset(months=1)
             corte = df_valid[df_valid['mes'] <= fecha_limite]
+
             if len(corte) < 1:
                 pred = 0
             else:
@@ -124,8 +133,14 @@ def forecast_engine(df, lead_time_meses=3):
                     serie_fut = corte.set_index('mes')['demanda_limpia']
                     _, modelo_fut = metodo_forecast(serie_fut)
                     pred = modelo_fut.forecast(1)[0] if modelo_fut else serie_fut.tail(4).mean()
+                    if pd.isna(pred) or pred < 0:
+                        pred = serie_fut.tail(3).mean()
+                    if pd.isna(pred) or pred < 0:
+                        pred = 0
                 except:
                     pred = 0
+
+            forecast_up = round(pred + 1 * std_forecast) if pd.notnull(std_forecast) else round(pred)
 
             resultados.append({
                 'sku': sku,
@@ -133,6 +148,7 @@ def forecast_engine(df, lead_time_meses=3):
                 'demanda': np.nan,
                 'demanda_limpia': np.nan,
                 'forecast': round(pred),
+                'forecast_up': forecast_up,
                 'tipo_mes': 'proyección',
                 'metodo_forecast': mejor_modelo
             })
@@ -140,6 +156,7 @@ def forecast_engine(df, lead_time_meses=3):
     df_final = pd.DataFrame(resultados)
     df_final['mes'] = pd.to_datetime(df_final['mes'])
     df_final['forecast'] = df_final['forecast'].fillna(0).astype(int)
+    df_final['forecast_up'] = df_final['forecast_up'].fillna(np.nan).astype('Int64')
     df_final['demanda'] = df_final['demanda'].fillna(0).astype(int)
     df_final['demanda_limpia'] = df_final['demanda_limpia'].fillna(0).astype(int)
 
@@ -158,6 +175,7 @@ def forecast_engine(df, lead_time_meses=3):
 
     df_final['mes'] = df_final['mes'].dt.strftime('%Y-%m')
     return df_final
+
 
 
 def generar_comparativa_forecasts(df, horizonte_meses=6):

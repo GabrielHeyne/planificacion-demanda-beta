@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta
 import os
+import plotly.express as px
 
 st.set_page_config(layout="wide")
 
@@ -189,38 +190,50 @@ def graficar_unidades_perdidas(df):
 # --- Gráfico de % Quiebre de Stock Mensual ---
 @st.cache_data
 def graficar_quiebre(df):
+    import numpy as np  # asegúrate de tener esta importación si no la tienes arriba
+
     df_quiebre = df.copy()
     df_quiebre['mes'] = df_quiebre['fecha'].dt.to_period('M').dt.to_timestamp()
     df_quiebre_mensual = df_quiebre.groupby('mes').apply(
         lambda x: (x['unidades_perdidas'].sum() / x['demanda_sin_outlier'].sum()) * 100
+        if x['demanda_sin_outlier'].sum() > 0 else 0
     ).reset_index(name='porcentaje_quiebre')
 
-    # Gráfico de líneas de % Quiebre de Stock
-    fig_quiebre = go.Figure()
+    # Manejar posibles NaN o infinitos al convertir a texto
+    if df_quiebre_mensual['porcentaje_quiebre'].isnull().any() or np.isinf(df_quiebre_mensual['porcentaje_quiebre']).any():
+        texto_quiebre = (
+            df_quiebre_mensual['porcentaje_quiebre']
+            .replace([np.inf, -np.inf], np.nan)
+            .fillna(0)
+            .round(0)
+            .astype(int)
+            .astype(str) + '%'
+        )
+    else:
+        texto_quiebre = df_quiebre_mensual['porcentaje_quiebre'].round(0).astype(int).astype(str) + '%'
 
-    # Añadir la línea para el % Quiebre de Stock
+    # Gráfico
+    fig_quiebre = go.Figure()
     fig_quiebre.add_trace(go.Scatter(
-        x=df_quiebre_mensual['mes'], 
+        x=df_quiebre_mensual['mes'],
         y=df_quiebre_mensual['porcentaje_quiebre'],
-        mode='lines+markers+text',  # Usamos 'text' para mostrar las etiquetas
+        mode='lines+markers+text',
         name='% Quiebre de Stock',
-        text=df_quiebre_mensual['porcentaje_quiebre'].round(0).astype(int).astype(str) + '%',  # Eliminar decimales y mostrar solo el % entero
-        textposition='top center',  # Coloca las etiquetas sobre la línea
+        text=texto_quiebre,
+        textposition='top center',
         line=dict(color='lightcoral', width=2),
         marker=dict(size=6, color='red', symbol='circle')
     ))
 
-    # Añadir títulos a los ejes y gráfico
     fig_quiebre.update_layout(
         xaxis_title="Mes",
         yaxis_title="% Quiebre de Stock",
-        template="plotly_white"
+        template="plotly_white",
+        margin=dict(t=4)
     )
 
-  # Añadir la configuración para reducir el espacio
-    fig_quiebre.update_layout(margin=dict(t=4))  # Reducir el margen superior a 0
-
     return fig_quiebre
+
 
 
 # --- Mostrar gráficos ---
@@ -321,3 +334,94 @@ st.download_button(
     mime="text/csv",
     key="btn_descarga_quiebre"
 )
+
+
+# =====================================
+# 🔎 ANÁLISIS ABC DE DEMANDA
+# =====================================
+
+# Paso 1: filtrar últimos 12 meses
+fecha_max = df['fecha'].max()
+fecha_min = fecha_max - pd.DateOffset(months=12)
+df_12m = df[df['fecha'] >= fecha_min]
+
+# Paso 2: agrupar demanda limpia por SKU
+df_abc = df_12m.groupby('sku')['demanda_sin_outlier'].sum().reset_index()
+df_abc = df_abc.sort_values('demanda_sin_outlier', ascending=False)
+df_abc['participacion'] = df_abc['demanda_sin_outlier'] / df_abc['demanda_sin_outlier'].sum()
+df_abc['acumulado'] = df_abc['participacion'].cumsum()
+
+# Paso 3: clasificar ABC
+def clasificar(row):
+    if row['acumulado'] <= 0.7:
+        return 'A'
+    elif row['acumulado'] <= 0.9:
+        return 'B'
+    else:
+        return 'C'
+df_abc['Clase ABC'] = df_abc.apply(clasificar, axis=1)
+
+# Paso 4: agregar descripción si existe maestro
+if 'maestro' in st.session_state and st.session_state['maestro'] is not None:
+    df_abc = df_abc.merge(st.session_state['maestro'][['sku', 'descripcion']], on='sku', how='left')
+
+# Paso 5: tabla formateada
+df_tabla_abc = df_abc[['sku', 'descripcion', 'demanda_sin_outlier', 'acumulado', 'Clase ABC']].copy()
+df_tabla_abc.columns = ['SKU', 'Descripción', 'Demanda Total', '% Acumulado', 'Clase ABC']
+df_tabla_abc['% Acumulado'] = (df_tabla_abc['% Acumulado'] * 100).round(0).astype(int).astype(str) + '%'
+# Guardar clasificación ABC en session_state
+st.session_state["clase_abc"] = df_abc.set_index("sku")["Clase ABC"].to_dict()
+
+
+# Conteo para gráfico
+conteo_clases = df_tabla_abc['Clase ABC'].value_counts().reset_index()
+conteo_clases.columns = ['Clase', 'Cantidad']
+conteo_clases = conteo_clases.sort_values('Clase')
+
+# Ajustar eje Y automáticamente (10% extra)
+max_cantidad = conteo_clases['Cantidad'].max()
+fig_clases = px.bar(
+    conteo_clases,
+    x='Clase',
+    y='Cantidad',
+    color='Clase',
+    text='Cantidad',
+    color_discrete_sequence=['#2a9d8f', '#f4a261', '#e76f51']
+)
+fig_clases.update_traces(
+    textposition='outside',
+    textfont=dict(size=14, color='black')
+)
+fig_clases.update_layout(
+    height=370,
+    margin=dict(t=10),
+    yaxis=dict(range=[0, max_cantidad * 1.1])
+)
+
+# Layout: gráfico a la izquierda, tabla a la derecha
+with st.container():
+    col_grafico, col_tabla = st.columns([1, 2])
+
+    with col_grafico:
+        st.markdown("""
+        <div class="titulo-con-fondo" style="margin-bottom: 5px; text-align: center;">
+            <h4 style="margin: 0; font-weight: 400; font-size: 18px;">
+                📊 Cantidad de SKUs en cada Clase ABC
+            </h4>
+        </div>
+        """, unsafe_allow_html=True)
+        st.plotly_chart(fig_clases, use_container_width=True)
+
+        # Botón alineado a la izquierda debajo del gráfico
+        csv_abc = df_tabla_abc.to_csv(index=False).encode('utf-8')
+        st.download_button("📥 Descargar Análisis ABC", data=csv_abc, file_name="analisis_abc.csv", mime="text/csv")
+
+    with col_tabla:
+        st.markdown("""
+        <div class="titulo-con-fondo" style="margin-bottom: 5px; text-align: center;">
+            <h4 style="margin: 0; font-weight: 400; font-size: 18px;">
+                📊 Análisis ABC de Demanda (últimos 12 meses)
+            </h4>
+        </div>
+        """, unsafe_allow_html=True)
+        st.dataframe(df_tabla_abc, use_container_width=True, height=300)
