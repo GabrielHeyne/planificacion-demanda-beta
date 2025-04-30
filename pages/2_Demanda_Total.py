@@ -252,7 +252,7 @@ df_ranking_quiebre = df_quiebre.groupby('sku').agg({
 }).reset_index()
 
 # Redondeamos el porcentaje de quiebre a enteros
-df_ranking_quiebre['porcentaje_quiebre'] = df_ranking_quiebre['porcentaje_quiebre'].round(0).astype(int)
+df_ranking_quiebre['porcentaje_quiebre'] = df_ranking_quiebre['porcentaje_quiebre'].fillna(0).round(0).astype(int)
 
 # Ordenamos el DataFrame por unidades perdidas de manera descendente y seleccionamos los 10 primeros
 df_ranking_quiebre = df_ranking_quiebre.sort_values(by='unidades_perdidas', ascending=False).head(10)

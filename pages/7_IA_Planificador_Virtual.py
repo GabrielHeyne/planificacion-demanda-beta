@@ -152,8 +152,6 @@ if user_input:
 
     if sku_detectado:
         respuesta = responder_con_sku(sku_detectado, user_input)
-    elif "ultimo_sku_utilizado" in st.session_state:
-        respuesta = responder_con_sku(st.session_state["ultimo_sku_utilizado"], user_input)
     else:
         respuesta = responder_general(user_input)
         if respuesta is None:
