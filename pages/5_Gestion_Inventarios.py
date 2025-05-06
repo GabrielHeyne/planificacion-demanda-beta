@@ -22,15 +22,27 @@ st.markdown("<p style='font-size: 16px;'>Revisa políticas de inventario por SKU
 def cargar_si_existe(clave, ruta, tipo='csv'):
     if clave not in st.session_state or st.session_state[clave] is None:
         if os.path.exists(ruta):
-            df = pd.read_excel(ruta) if tipo == 'excel' else pd.read_csv(ruta)
-            if 'fecha' in df.columns:
-                df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
-            if 'cantidad' in df.columns:
-                df['cantidad'] = pd.to_numeric(df['cantidad'], errors='coerce').fillna(0).astype(int)
-            if 'stock' in df.columns:
-                df['stock'] = pd.to_numeric(df['stock'], errors='coerce').fillna(0).astype(int)
-            st.session_state[clave] = df
-            return df
+            try:
+                df = pd.read_excel(ruta) if tipo == 'excel' else pd.read_csv(ruta)
+                
+                # Convert fecha to datetime if it exists
+                if 'fecha' in df.columns:
+                    df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
+                    if df['fecha'].isna().any():
+                        st.error(f"⚠️ Hay fechas inválidas en el archivo {ruta}. Por favor, verifica el formato de las fechas.")
+                        return pd.DataFrame()
+                
+                # Convert numeric columns
+                if 'cantidad' in df.columns:
+                    df['cantidad'] = pd.to_numeric(df['cantidad'], errors='coerce').fillna(0).astype(int)
+                if 'stock' in df.columns:
+                    df['stock'] = pd.to_numeric(df['stock'], errors='coerce').fillna(0).astype(int)
+                
+                st.session_state[clave] = df
+                return df
+            except Exception as e:
+                st.error(f"⚠️ Error al cargar el archivo {ruta}: {str(e)}")
+                return pd.DataFrame()
     return st.session_state.get(clave, pd.DataFrame())
 
 # --- Bases de datos ---

@@ -3,7 +3,8 @@ import pandas as pd
 import plotly.graph_objects as go
 from modules.forecast_engine import forecast_engine, generar_comparativa_forecasts
 from utils.utils import render_logo_sidebar 
-import os
+from utils.file_operations import upload_file_to_supabase, get_file_from_supabase, list_available_files
+import io
 
 # --- Configuración inicial ---
 st.set_page_config(layout="wide")
@@ -29,13 +30,44 @@ df_demanda = st.session_state['demanda_limpia']
 
 # --- Forecast principal ---
 if 'forecast' not in st.session_state:
-    if os.path.exists("data/forecast.csv"):
-        os.remove("data/forecast.csv")
-    df_forecast = forecast_engine(df_demanda, lead_time_meses=4)
-    df_forecast.to_csv("data/forecast.csv", index=False)
-    st.session_state['forecast'] = df_forecast
+    # Show available files
+    df_forecast = None
+    available_files = list_available_files('forecast')
+    if available_files:
+        st.markdown("### Archivos de Forecast disponibles")
+        for file in available_files:
+            if st.button(f"📄 {file['file_name']} ({file['upload_date']})"):
+                df = get_file_from_supabase('forecast', file['file_name'])
+                if df is not None:
+                    st.session_state['forecast'] = df
+                    st.success("✅ Forecast cargado correctamente.")
+                    st.rerun()
+    
+    # Generate new forecast if no file is selected
+    if st.button("🔄 Generar nuevo Forecast"):
+        df_forecast = forecast_engine(df_demanda, lead_time_meses=4)
+        
+        # Upload to Supabase
+        csv_buffer = io.BytesIO()
+        df_forecast.to_csv(csv_buffer, index=False)
+        csv_buffer.seek(0)
+        
+        success, file_name = upload_file_to_supabase(csv_buffer, 'forecast')
+        if success:
+            st.success(f"✅ Forecast guardado en Supabase como: {file_name}")
+        
+        st.session_state['forecast'] = df_forecast
+        st.rerun()
+    
+    else:
+        st.error("⚠️ No se ha cargado el Forecast. Elige un archivo o genera uno nuevo.")
+        st.stop()
 else:
-    df_forecast = st.session_state['forecast']
+    if st.session_state['forecast'] is None:
+        st.error("⚠️ No se ha cargado el Forecast. Por favor, ve a 'Carga Archivos' y vuelve a intentarlo.")
+        st.stop()
+    else:
+        df_forecast = st.session_state['forecast']
 
 # --- Comparativa por métodos ---
 if 'forecast_comparativa' not in st.session_state:

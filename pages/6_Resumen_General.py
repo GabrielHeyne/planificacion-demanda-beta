@@ -45,7 +45,7 @@ requisitos = {
     'stock_historico': df_stock_hist,
     'stock_actual': df_stock_actual
 }
-faltantes = [k for k, v in requisitos.items() if v.empty]
+faltantes = [k for k, v in requisitos.items() if v is None or v.empty]
 if faltantes:
     st.warning(f"⚠️ Faltan datos requeridos: {', '.join(faltantes)}. Ve al módulo correspondiente.")
     st.stop()

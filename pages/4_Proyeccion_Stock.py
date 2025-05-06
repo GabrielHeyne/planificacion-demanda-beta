@@ -48,9 +48,24 @@ if stock_info.empty:
     st.warning("⚠️ No hay stock inicial cargado para este SKU.")
     st.stop()
 
-fecha_inicio = stock_info['fecha'].max().to_period('M').to_timestamp()
-fila_stock = stock_info[stock_info['fecha'].dt.to_period('M').dt.to_timestamp() == fecha_inicio].iloc[0]
-stock_inicial = int(fila_stock['stock'])
+
+# Ensure fecha is datetime
+try:
+    if stock_info['fecha'].dtype == 'object':
+        stock_info['fecha'] = pd.to_datetime(stock_info['fecha'], errors='coerce')
+    
+    # Verify we have valid datetime values
+    if stock_info['fecha'].isna().any():
+        st.error("⚠️ Hay fechas inválidas en el archivo de stock. Por favor, verifica el formato de las fechas.")
+        st.stop()
+    
+    fecha_inicio = stock_info['fecha'].max().to_period('M').to_timestamp()
+    fila_stock = stock_info[stock_info['fecha'].dt.to_period('M').dt.to_timestamp() == fecha_inicio].iloc[0]
+    stock_inicial = int(fila_stock['stock'])
+except Exception as e:
+    st.error(f"⚠️ Error al procesar las fechas: {str(e)}")
+    st.error("Por favor, verifica que el archivo de stock tenga fechas válidas en formato YYYY-MM-DD")
+    st.stop()
 
 # Precio de venta
 precio_venta = None
@@ -75,7 +90,7 @@ if df_resultado.empty:
 st.session_state['stock_proyectado'] = df_resultado
 
 # ✅ Guardar CSV de persistencia
-df_resultado.to_csv(f"data/proyeccion_stock_{sku_sel}.csv", index=False)
+df_resultado.to_csv(f"data_old/proyeccion_stock_{sku_sel}.csv", index=False)
 
 # --- KPIs visuales ---
 st.markdown("<div class='titulo-con-fondo'>📌 Información del Producto Seleccionado</div>", unsafe_allow_html=True)

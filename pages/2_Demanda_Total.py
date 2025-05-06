@@ -32,7 +32,7 @@ def cargar_demanda():
 
 df = cargar_demanda()
 
-if df.empty:
+if df is None or df.empty:
     st.warning("⚠️ No se han cargado los datos limpios. Ve al menú 'Carga Archivos' para hacerlo.")
     st.stop()
 

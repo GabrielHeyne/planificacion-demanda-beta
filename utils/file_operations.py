@@ -11,16 +11,26 @@ def upload_file_to_supabase(file, file_type: str, file_name: str = None):
         # Generate a unique file name if not provided
         if file_name is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            file_name = f"{file_type}_{timestamp}.csv"
+            # Determine file extension based on the uploaded file
+            if hasattr(file, 'name'):
+                file_ext = file.name.split('.')[-1].lower()
+            else:
+                file_ext = 'csv'  # default to csv if we can't determine
+            file_name = f"{file_type}_{timestamp}.{file_ext}"
         
         # Create the file path in Supabase storage
         file_path = f"raw-files/{file_type}/{file_name}"
+        
+        # Determine content type based on file extension
+        content_type = "text/csv"
+        if file_name.endswith('.xlsx'):
+            content_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         
         # Upload the file to Supabase storage
         supabase.storage.from_("raw-files").upload(
             file_path,
             file.getvalue(),
-            {"content-type": "text/csv"}
+            {"content-type": content_type}
         )
         
         # Store file metadata in the database
