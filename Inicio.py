@@ -1,9 +1,10 @@
 import streamlit as st
 from PIL import Image
 import os
+from utils.utils import render_logo_sidebar
 
 # --- Configuración de página ---
-st.set_page_config(page_title="Planity", layout="wide")
+st.set_page_config(page_title="Planity", layout="wide", initial_sidebar_state="expanded")
 
 # --- Función para cargar CSS personalizado ---
 def load_css():
@@ -12,14 +13,6 @@ def load_css():
 
 # Cargar los estilos
 load_css()
-
-# --- Función para renderizar el logo en la barra lateral ---
-def render_logo_sidebar():
-    logo_path = os.path.join("planity_logo.png")  # Ruta del logo
-    image = Image.open(logo_path)
-    st.sidebar.image(image, use_container_width=True)
-
-# Llamar a la función para renderizar el logo en la barra lateral
 render_logo_sidebar()
 
 # --- Banner superior ---

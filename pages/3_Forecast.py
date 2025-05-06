@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from modules.forecast_engine import forecast_engine, generar_comparativa_forecasts
-from utils import render_logo_sidebar
+from utils.utils import render_logo_sidebar 
 import os
 
 # --- Configuración inicial ---

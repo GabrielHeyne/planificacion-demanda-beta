@@ -1,11 +1,14 @@
 from supabase import create_client
-from config import SUPABASE_URL, SUPABASE_KEY
+import streamlit as st
 import pandas as pd
 import io
 import base64
 
-# Initialize Supabase client
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Initialize Supabase client using Streamlit secrets
+supabase = create_client(
+    st.secrets["supabase"]["url"],
+    st.secrets["supabase"]["key"]
+)
 
 def store_raw_file(file_name: str, file_content: bytes, file_type: str):
     """

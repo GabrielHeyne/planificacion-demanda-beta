@@ -1,5 +1,5 @@
 import pandas as pd
-from supabase_client import supabase
+from utils.supabase_client import supabase
 import io
 from datetime import datetime
 

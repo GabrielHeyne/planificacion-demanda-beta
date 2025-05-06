@@ -4,6 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta
+from utils.utils import render_logo_sidebar  
 import os
 
 st.set_page_config(layout="wide")
@@ -15,7 +16,6 @@ def load_css():
 load_css()
 
 # Logo lateral
-from utils import render_logo_sidebar  
 render_logo_sidebar()
 
 st.markdown('<h1 style="font-size: 24px; margin-bottom: 2px; font-weight: 500;">DEMANDA TOTAL Y QUIEBRES</h1>', unsafe_allow_html=True)

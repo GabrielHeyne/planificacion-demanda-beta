@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 from modules.demand_cleaner import clean_demand
-from utils import render_logo_sidebar
+from utils.utils import render_logo_sidebar
 from utils.file_operations import upload_file_to_supabase, get_file_from_supabase, list_available_files
 
 # --- Estilos y logo ---

@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from utils import render_logo_sidebar
+from utils.utils import render_logo_sidebar 
 from modules.inventory_managment import calcular_politicas_inventario
 from modules.evaluar_compra_sku import evaluar_compra_sku
 from dateutil.relativedelta import relativedelta

@@ -1,6 +1,6 @@
 import pandas as pd
 import streamlit as st
-from utils import render_logo_sidebar
+from utils.utils import render_logo_sidebar 
 import plotly.graph_objects as go
 from modules.stock_projector import project_stock
 import os

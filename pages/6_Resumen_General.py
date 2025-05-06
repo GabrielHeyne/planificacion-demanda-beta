@@ -1,5 +1,5 @@
 import streamlit as st
-from utils import render_logo_sidebar
+from utils.utils import render_logo_sidebar 
 from PIL import Image
 import pandas as pd
 import plotly.graph_objects as go
