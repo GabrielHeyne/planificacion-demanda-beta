@@ -11,15 +11,45 @@ def load_css():
 load_css()
 render_logo_sidebar()
 
-# --- Inicializar estructuras ---
+# --- Inicializar session_state ---
 for clave in ['demanda_limpia', 'stock_actual', 'reposiciones', 'maestro', 'stock_historico']:
     if clave not in st.session_state:
         st.session_state[clave] = None
 
-# --- Carga de DEMANDA ---
-st.markdown("<div class='section-title'>📁 Carga de Archivos y Limpieza de Demanda</div>", unsafe_allow_html=True)
+st.markdown("""
+<div style='font-size:25px; font-weight:400; margin-top:10px; margin-bottom:10px;'>
+📁 Carga de Archivos
+</div>
+""", unsafe_allow_html=True)
+
+# --- STOCK HISTÓRICO (Primero) ---
+st.markdown("<div class='section-subtitle'>📊 Carga de Stock Histórico</div>", unsafe_allow_html=True)
+if st.session_state['stock_historico'] is None:
+    archivo = st.file_uploader("1️⃣ Sube el archivo de stock histórico (CSV)", type="csv", key="uploader_stock_historico")
+    if archivo:
+        df = pd.read_csv(archivo)
+        expected = {'sku', 'fecha', 'stock'}
+        if expected.issubset(df.columns):
+            df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
+            df['stock'] = pd.to_numeric(df['stock'], errors='coerce').fillna(0).astype(int)
+            st.session_state['stock_historico'] = df
+            st.success("✅ Stock histórico cargado correctamente.")
+            st.rerun()
+        else:
+            st.error(f"⚠️ Faltan columnas: {expected - set(df.columns)}")
+else:
+    historico_df = st.session_state['stock_historico']
+    st.markdown("<div style='font-size:16px;'>✅ <b>Vista previa del stock histórico</b></div>", unsafe_allow_html=True)
+    st.dataframe(historico_df)
+
+# --- DEMANDA (Permitir siempre, con advertencia si no hay stock) ---
+st.markdown("<div class='section-subtitle'>📈 Carga de Demanda y Limpieza</div>", unsafe_allow_html=True)
+
+if st.session_state['stock_historico'] is None:
+    st.warning("⚠️ Para limpiar la demanda correctamente, se recomienda subir primero el archivo de stock histórico. Aun así, puedes continuar.")
 
 if st.session_state['demanda_limpia'] is None:
+
     # Show available files
     available_files = list_available_files('demanda')
     if available_files:
@@ -36,6 +66,7 @@ if st.session_state['demanda_limpia'] is None:
     
     # File uploader
     archivo = st.file_uploader("Sube el archivo de demanda (CSV)", type="csv", key="uploader_demanda")
+
     if archivo:
         # Upload to Supabase
         success, file_name = upload_file_to_supabase(archivo, 'demanda')
@@ -58,8 +89,7 @@ else:
 
 
 # --- STOCK ACTUAL ---
-st.markdown("<div class='section-title'>📦 Carga de Stock Actual por SKU (Opcional)</div>", unsafe_allow_html=True)
-
+st.markdown("<div class='section-subtitle'>📦 Carga de Stock Actual por SKU (Opcional)</div>", unsafe_allow_html=True)
 if st.session_state['stock_actual'] is None:
     # Show available files
     available_files = list_available_files('stock_actual')
@@ -96,10 +126,8 @@ else:
     st.markdown("<div style='font-size:16px;'>✅ <b>Vista previa del stock actual</b></div>", unsafe_allow_html=True)
     st.dataframe(stock_df)
 
-
 # --- REPOSICIONES ---
-st.markdown("<div class='section-title'>📦 Carga de Reposiciones Futuras</div>", unsafe_allow_html=True)
-
+st.markdown("<div class='section-subtitle'>📦 Carga de Reposiciones Futuras</div>", unsafe_allow_html=True)
 if st.session_state['reposiciones'] is None:
     # Show available files
     available_files = list_available_files('reposiciones')
@@ -137,10 +165,8 @@ else:
     st.markdown("<div style='font-size:16px;'>✅ <b>Vista previa de las reposiciones futuras</b></div>", unsafe_allow_html=True)
     st.dataframe(repos_df)
 
-
 # --- MAESTRO ---
-st.markdown("<div class='section-title'>📘 Carga del Maestro de Productos</div>", unsafe_allow_html=True)
-
+st.markdown("<div class='section-subtitle'>📘 Carga del Maestro de Productos</div>", unsafe_allow_html=True)
 if st.session_state['maestro'] is None:
     # Show available files
     available_files = list_available_files('maestro')
@@ -176,45 +202,4 @@ else:
     maestro_df = st.session_state['maestro']
     st.markdown("<div style='font-size:16px;'>✅ <b>Vista previa del maestro de productos</b></div>", unsafe_allow_html=True)
     st.dataframe(maestro_df)
-
-
-# --- STOCK HISTÓRICO ---
-st.markdown("<div class='section-title'>📊 Carga de Stock Histórico</div>", unsafe_allow_html=True)
-
-if st.session_state['stock_historico'] is None:
-    # Show available files
-    available_files = list_available_files('stock_historico')
-    if available_files:
-        st.markdown("### Archivos disponibles")
-        for file in available_files:
-            if st.button(f"📄 {file['file_name']} ({file['upload_date']})"):
-                df = get_file_from_supabase('stock_historico', file['file_name'])
-                if df is not None:
-                    st.session_state['stock_historico'] = df
-                    st.success("✅ Stock histórico cargado.")
-                    st.rerun()
-    
-    # File uploader
-    archivo = st.file_uploader("Sube el archivo de stock histórico (CSV)", type="csv", key="uploader_stock_historico")
-    if archivo:
-        # Upload to Supabase
-        success, file_name = upload_file_to_supabase(archivo, 'stock_historico')
-        if success:
-            st.success(f"✅ Archivo guardado en Supabase como: {file_name}")
-        
-        # Process the file
-        df = pd.read_csv(archivo)
-        expected = {'sku', 'fecha', 'stock'}
-        if expected.issubset(df.columns):
-            df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
-            df['stock'] = pd.to_numeric(df['stock'], errors='coerce').fillna(0).astype(int)
-            st.session_state['stock_historico'] = df
-            st.success("✅ Stock histórico cargado.")
-            st.rerun()
-        else:
-            st.error(f"⚠️ Faltan columnas: {expected - set(df.columns)}")
-else:
-    historico_df = st.session_state['stock_historico']
-    st.markdown("<div style='font-size:16px;'>✅ <b>Vista previa del stock histórico</b></div>", unsafe_allow_html=True)
-    st.dataframe(historico_df)
 

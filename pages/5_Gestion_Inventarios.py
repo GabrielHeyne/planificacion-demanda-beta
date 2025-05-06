@@ -138,15 +138,29 @@ col1.markdown(tarjeta_resumen("Total SKUs a Comprar", total_skus), unsafe_allow_
 col2.markdown(tarjeta_resumen("Total Unidades a Comprar", total_unidades, "unidades"), unsafe_allow_html=True)
 col3.markdown(tarjeta_resumen("Costo Total de Fabricación", int(total_costo), "€"), unsafe_allow_html=True)
 
+# --- Filtro de acción de compra ---
+opcion_filtro = st.radio(
+    "Filtrar por acción sugerida:",
+    options=["Todos", "Sólo los que se deben comprar", "Sólo los que no se deben comprar"],
+    horizontal=True
+)
+
 # --- Tabla detallada por SKU ---
 st.markdown("<div class='titulo-con-fondo'>📋 Tabla Resumen por SKU</div>", unsafe_allow_html=True)
 
 df_resumen = pd.DataFrame(tabla_resumen)
 df_resumen = df_resumen[["SKU", "Demanda Mensual", "Stock Actual", "Reposiciones", "Stock Proyectado (5M)", "ROP", "Safety Stock", "EOQ", "Costo Fabricación (€)", "Acción"]]
 
+# Aplicar filtro al DataFrame de resumen
+if opcion_filtro == "Sólo los que se deben comprar":
+    df_resumen = df_resumen[df_resumen["Acción"] == "Comprar"]
+elif opcion_filtro == "Sólo los que no se deben comprar":
+    df_resumen = df_resumen[df_resumen["Acción"] == "No comprar"]
+
 # ✅ Guardar resumen en session_state para el planificador IA
 st.session_state["politicas_inventario"] = df_resumen
 
+# Mostrar la tabla
 st.dataframe(df_resumen, use_container_width=True)
 
 # --- Botón para descargar Excel ---
@@ -160,6 +174,7 @@ st.download_button(
     file_name="resumen_inventario.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
+
 
 # --- Detalle por SKU con tarjetas ---
 sku_sel = st.selectbox("Selecciona un SKU para ver el detalle", sorted(df_forecast['sku'].unique()))
