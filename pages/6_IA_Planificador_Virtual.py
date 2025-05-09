@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
-from utils import render_logo_sidebar
+from utils.render_logo_sidebar import render_logo_sidebar
 from openai import OpenAI
 from modules.resumen_utils import generar_contexto_negocio
 from modules.ia_utils import responder_general

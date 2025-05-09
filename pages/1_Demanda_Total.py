@@ -4,87 +4,73 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta
-import os
-import plotly.express as px
+from utils.filtros import aplicar_filtro_sku_y_fecha
 
+# ✅ Configuración inicial
 st.set_page_config(layout="wide")
 
-# Cargar CSS
+# ✅ Logo y estilos
+from utils.render_logo_sidebar import render_logo_sidebar
+
 def load_css():
     with open("utils/style.css") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
-load_css()
 
-# Logo lateral
-from utils import render_logo_sidebar  
+load_css()
 render_logo_sidebar()
 
-st.markdown('<h1 style="font-size: 24px; margin-bottom: 2px; font-weight: 500;">DEMANDA TOTAL Y QUIEBRES</h1>', unsafe_allow_html=True)
+# ✅ Título
+st.markdown('<h1 style="font-size: 24px; margin-bottom: 2px; font-weight: 500;">📊 DEMANDA TOTAL Y QUIEBRES</h1>', unsafe_allow_html=True)
 
-# --- Cargar demanda limpia desde session_state o desde disco ---
-def cargar_demanda():
-    if "demanda_limpia" not in st.session_state or st.session_state["demanda_limpia"] is None:
-        if os.path.exists("data/demanda_limpia.xlsx"):
-            df = pd.read_excel("data/demanda_limpia.xlsx")
-            df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")
-            st.session_state["demanda_limpia"] = df
-    return st.session_state.get("demanda_limpia", pd.DataFrame())
-
-df = cargar_demanda()
-
-if df.empty:
-    st.warning("⚠️ No se han cargado los datos limpios. Ve al menú 'Carga Archivos' para hacerlo.")
+# ✅ Validación de datos
+if "demanda_limpia" not in st.session_state or st.session_state["demanda_limpia"] is None or st.session_state["demanda_limpia"].empty:
+    st.warning("⚠️ Aún no se han cargado los datos de demanda limpia. Por favor, vuelve a la página de Inicio y presiona 'Comenzar planificación'.")
     st.stop()
 
-# --- Continuación de tu código original ---
+# ✅ Cargar datos
+df = st.session_state["demanda_limpia"].copy()
 df['fecha'] = pd.to_datetime(df['fecha'])
 df['semana'] = df['fecha'].dt.to_period('W').apply(lambda r: r.start_time)
 
-# --- Filtro por SKU ---
-skus = sorted(df['sku'].unique())
-skus.insert(0, "TODOS")
-sku_seleccionado = st.selectbox("Selecciona un SKU", skus)
-df_filtrado = df if sku_seleccionado == "TODOS" else df[df['sku'] == sku_seleccionado]
+# (Aquí continúa el resto de tu lógica de filtros, gráficos, KPIs, etc.)
 
-# --- Filtro de fechas ---
-fecha_min = df_filtrado['fecha'].min().date()
-fecha_max = df_filtrado['fecha'].max().date()
-fecha_min_defecto = max(fecha_min, (fecha_max - relativedelta(months=24)))
-rango_fecha = st.date_input("Selecciona el rango de fechas", value=(fecha_min_defecto, fecha_max), min_value=fecha_min, max_value=fecha_max)
-fecha_inicio = pd.to_datetime(rango_fecha[0])
-fecha_fin = pd.to_datetime(rango_fecha[1])
-df_filtrado = df_filtrado[(df_filtrado['fecha'] >= fecha_inicio) & (df_filtrado['fecha'] <= fecha_fin)]
+
+df_filtrado, sku_seleccionado, fecha_inicio, fecha_fin = aplicar_filtro_sku_y_fecha(df)
+
 
 # --- KPIs y quiebres ---
 df_quiebre = df_filtrado.copy()
 df_quiebre['quiebre_stock'] = (df_quiebre['demanda'] == 0) & (df_quiebre['demanda_sin_outlier'] > 0)
 
-if sku_seleccionado == "TODOS":
-    quiebre_por_sku = df_quiebre.groupby('sku').apply(lambda x: (x['quiebre_stock'].sum() / len(x)) * 100)
-    porcentaje_quiebre = round(quiebre_por_sku.mean(), 1)
-else:
-    total_semanas = df_quiebre['semana'].nunique()
-    quiebre_semanas = df_quiebre[df_quiebre['quiebre_stock']].groupby('semana').ngroup().nunique()
-    porcentaje_quiebre = round((quiebre_semanas / total_semanas) * 100, 1) if total_semanas > 0 else 0
-
-# NUEVA DEFINICIÓN: Unidades perdidas
+# Calcular unidades perdidas
 df_quiebre['unidades_perdidas'] = df_quiebre.apply(
-    lambda row: row['demanda_sin_outlier'] - row['demanda'] if row['demanda_sin_outlier'] > row['demanda'] else 0,
+    lambda row: row['demanda_sin_stockout'] - row['demanda'] if row['demanda_sin_stockout'] > row['demanda'] else 0,
     axis=1
 )
-
-# Redondear valores y manejar NaN/infinitos
 df_quiebre['unidades_perdidas'] = df_quiebre['unidades_perdidas'].fillna(0).round(0).astype(int)
+
+# ✅ Cálculo universal del % de quiebre (para TODOS o un SKU)
+total_unidades_perdidas = df_quiebre['unidades_perdidas'].sum()
+demanda_real_total = df_quiebre['demanda'].sum()
+porcentaje_quiebre = round(
+    (total_unidades_perdidas / (demanda_real_total + total_unidades_perdidas)) * 100,
+    1
+) if (demanda_real_total + total_unidades_perdidas) > 0 else 0
+
+
+# Redondeo de columnas generales
 df_filtrado['demanda'] = df_filtrado['demanda'].fillna(0).round(0).astype(int)
 df_filtrado['demanda_sin_outlier'] = df_filtrado['demanda_sin_outlier'].fillna(0).round(0).astype(int)
 
-# Asegurando que no haya NaN en porcentaje_quiebre y que se redondee correctamente
-df_quiebre['porcentaje_quiebre'] = (df_quiebre['unidades_perdidas'] / df_quiebre['demanda_sin_outlier']) * 100
-df_quiebre['porcentaje_quiebre'] = df_quiebre['porcentaje_quiebre'].fillna(0).round(0).astype(int)
+# Cálculo adicional por fila (para gráficos y rankings)
+df_quiebre['porcentaje_quiebre'] = (df_quiebre['unidades_perdidas'] / (df_quiebre['demanda'] + df_quiebre['unidades_perdidas'])) * 100
+df_quiebre['porcentaje_quiebre'] = df_quiebre['porcentaje_quiebre'].fillna(0).round().astype(int)
 
+# Totales para KPIs visuales
 total_unidades_perdidas = int(df_quiebre['unidades_perdidas'].sum())
 demanda_real_total = int(df_filtrado['demanda'].sum())
 demanda_limpia_total = int(df_filtrado['demanda_sin_outlier'].sum())
+
 
 # --- KPIs ---
 kpi_template = """
@@ -240,8 +226,24 @@ def graficar_quiebre(df):
 st.markdown(titulo_con_fondo(f"🔍 Demanda Semanal - {sku_seleccionado}"), unsafe_allow_html=True)
 st.plotly_chart(procesar_demanda_semanal(df_filtrado), use_container_width=True)
 
+# --- Descargable de demanda limpia semanal ---
+df_export_semanal = df_filtrado[['sku', 'fecha', 'demanda', 'demanda_sin_stockout', 'demanda_sin_outlier']].copy()
+df_export_semanal.columns = ['SKU', 'Fecha', 'Demanda Real', 'Demanda sin Stockout', 'Demanda Limpia']
+csv_semanal = df_export_semanal.to_csv(index=False).encode('utf-8')
+
+st.download_button("📥 Descargar Detalle Semanal", data=csv_semanal, file_name="demanda_limpia_semanal.csv", mime='text/csv', key="descarga_semanal")
+
+
 st.markdown(titulo_con_fondo(f"📆 Demanda Mensual - {sku_seleccionado}"), unsafe_allow_html=True)
 st.plotly_chart(procesar_demanda_mensual(df_filtrado), use_container_width=True)
+
+# --- Descargable de demanda limpia mensual ---
+df_export_semanal['Mes'] = pd.to_datetime(df_export_semanal['Fecha']).dt.to_period('M').dt.to_timestamp()
+df_mensual = df_export_semanal.groupby(['SKU', 'Mes'], as_index=False)[['Demanda Real', 'Demanda sin Stockout', 'Demanda Limpia']].sum()
+csv_mensual = df_mensual.to_csv(index=False).encode('utf-8')
+
+st.download_button("📥 Descargar Resumen Mensual", data=csv_mensual, file_name="demanda_limpia_mensual.csv", mime='text/csv', key="descarga_mensual")
+
 
 # Gráficos de Unidades Perdidas y % Quiebre
 col1, col2 = st.columns(2)
@@ -256,7 +258,8 @@ with col2:
 
 
 # Calcular el porcentaje de quiebre por SKU
-df_quiebre['porcentaje_quiebre'] = (df_quiebre['unidades_perdidas'] / df_quiebre['demanda_sin_outlier']) * 100
+df_quiebre['porcentaje_quiebre'] = (df_quiebre['unidades_perdidas'] / (df_quiebre['demanda'] + df_quiebre['unidades_perdidas'])) * 100
+
 
 # --- Ranking de SKUs con más quiebre ---
 df_ranking_quiebre = df_quiebre.groupby('sku').agg({
@@ -314,7 +317,7 @@ def generar_csv(df_quiebre):
     df_quiebre['demanda_sin_outlier'] = df_quiebre['demanda_sin_outlier'].round(0)
     
     # Añadir columnas de interés: SKU, demanda real, demanda limpia, unidades perdidas, % de quiebre, fecha
-    df_quiebre['porcentaje_quiebre'] = (df_quiebre['unidades_perdidas'] / df_quiebre['demanda_sin_outlier']) * 100
+    df_quiebre['porcentaje_quiebre'] = (df_quiebre['unidades_perdidas'] / (df_quiebre['demanda'] + df_quiebre['unidades_perdidas'])) * 100
     df_quiebre['porcentaje_quiebre'] = df_quiebre['porcentaje_quiebre'].round(0)
     
     # Selección de las columnas relevantes

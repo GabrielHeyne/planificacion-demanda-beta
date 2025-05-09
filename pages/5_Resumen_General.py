@@ -1,60 +1,40 @@
 import streamlit as st
-from utils import render_logo_sidebar
-from PIL import Image
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
-import os
+from utils.render_logo_sidebar import render_logo_sidebar
 from modules.resumen_utils import consolidar_historico_stock, consolidar_proyeccion_futura
 
 # --- Configuración de página ---
 st.set_page_config(page_title="Resumen General", layout="wide")
 
-# --- Cargar CSS ---
+# --- Estilos y logo ---
 def load_css():
     with open("utils/style.css") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
-
 load_css()
 render_logo_sidebar()
 
-# --- Función para cargar desde disco si no está en session_state ---
-def cargar_si_existe(clave, ruta, tipo='csv'):
-    if clave not in st.session_state or st.session_state[clave] is None:
-        if os.path.exists(ruta):
-            df = pd.read_excel(ruta) if tipo == 'excel' else pd.read_csv(ruta)
-            if 'fecha' in df.columns:
-                df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
-            if 'mes' in df.columns:
-                df['mes'] = pd.to_datetime(df['mes'], errors='coerce')
-            st.session_state[clave] = df
-    return st.session_state.get(clave, pd.DataFrame())
-
-# --- Cargar los datos (intenta desde memoria, y si no desde disco) ---
-df_demand = cargar_si_existe('demanda_limpia', 'data/demanda_limpia.xlsx', tipo='excel')
-df_forecast = cargar_si_existe('forecast', 'data/forecast.csv')
-df_stock_hist = cargar_si_existe('stock_historico', 'data/stock_historico.csv')
-df_stock_actual = cargar_si_existe('stock_actual', 'data/stock_actual.csv')
-df_repos = cargar_si_existe('reposiciones', 'data/reposiciones.csv')
-df_maestro = cargar_si_existe('maestro', 'data/maestro.csv')
-
-# --- Validación final de datos requeridos ---
-requisitos = {
-    'forecast': df_forecast,
-    'demanda_limpia': df_demand,
-    'stock_historico': df_stock_hist,
-    'stock_actual': df_stock_actual
-}
-faltantes = [k for k, v in requisitos.items() if v.empty]
+# --- Validación de datos requeridos ---
+requeridos = ['forecast', 'demanda_limpia', 'stock_historico', 'stock_actual']
+faltantes = [r for r in requeridos if r not in st.session_state or st.session_state[r] is None]
 if faltantes:
-    st.warning(f"⚠️ Faltan datos requeridos: {', '.join(faltantes)}. Ve al módulo correspondiente.")
+    st.warning(f"⚠️ Faltan datos requeridos: {', '.join(faltantes)}")
     st.stop()
 
-# --- Filtro de SKU ---
+# --- Carga desde session_state ---
+df_demand = st.session_state['demanda_limpia'].copy()
+df_forecast = st.session_state['forecast'].copy()
+df_stock_hist = st.session_state['stock_historico'].copy()
+df_stock_actual = st.session_state['stock_actual'].copy()
+df_repos = st.session_state.get('reposiciones', pd.DataFrame(columns=['sku', 'fecha', 'cantidad']))
+df_maestro = st.session_state.get('maestro', pd.DataFrame())
+
+# --- Selector de SKU ---
 sku_options = sorted(set(df_demand['sku'].unique()) | set(df_forecast['sku'].unique()))
 sku_select = st.selectbox("🔍 Filtrar por SKU", options=['Todos'] + sku_options)
 
-# --- Consolidación de datos ---
+# --- Consolidar datos históricos y futuros ---
 @st.cache_data
 def calcular_resumen(df_demand, df_forecast, df_stock_actual, df_repos, df_maestro):
     df_hist = consolidar_historico_stock(df_demand, df_maestro)
@@ -62,8 +42,6 @@ def calcular_resumen(df_demand, df_forecast, df_stock_actual, df_repos, df_maest
     return df_hist, df_futuro
 
 df_hist, df_futuro = calcular_resumen(df_demand, df_forecast, df_stock_actual, df_repos, df_maestro)
-
-# ✅ Guardar ambos para el planificador IA
 st.session_state['resumen_historico'] = df_hist
 st.session_state['proyeccion_stock'] = df_futuro
 

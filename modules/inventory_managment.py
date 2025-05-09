@@ -14,9 +14,12 @@ def calcular_politicas_inventario(df_forecast, sku, unidades_en_camino, df_maest
     # --- Desviación estándar de la demanda histórica (últimos 12 meses con demanda > 0) ---
     df_d_sku = df_demanda_limpia[(df_demanda_limpia['sku'] == sku) & (df_demanda_limpia['demanda'] > 0)].copy()
     df_d_sku['mes'] = pd.to_datetime(df_d_sku['fecha']).dt.to_period('M')
-    demanda_mensual_hist = df_d_sku.groupby('mes')['demanda'].sum()
+    demanda_mensual_hist = df_d_sku.groupby('mes')['demanda_sin_outlier'].sum()
     ultimos_meses = demanda_mensual_hist.tail(12)
-    desviacion_estandar = ultimos_meses.std() if not ultimos_meses.empty else 0
+    desviacion_estandar = ultimos_meses.std()
+    if pd.isna(desviacion_estandar):
+        desviacion_estandar = 0
+
 
     # --- Safety stock (Z = 1.65 para 95% nivel de servicio) ---
     safety_stock = round(desviacion_estandar * 1.65)

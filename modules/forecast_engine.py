@@ -1,10 +1,31 @@
 import pandas as pd
 import numpy as np
-from statsmodels.tsa.holtwinters import ExponentialSmoothing, Holt
+from statsmodels.tsa.holtwinters import ExponentialSmoothing, Holt, SimpleExpSmoothing
 
+# --- Métodos de forecast ---
 def forecast_promedio_movil(serie, ventana=4):
-    forecast = serie.rolling(window=ventana, min_periods=1).mean().shift(1)
+    forecast = serie.rolling(window=ventana, min_periods=1).mean()
     return forecast, None
+
+def forecast_promedio_6m(serie):
+    forecast = serie.rolling(window=6, min_periods=1).mean()
+    return forecast, None
+
+def forecast_ponderado_4m(serie):
+    pesos = np.array([1, 2, 3, 4])
+    pesos = pesos / pesos.sum()
+    forecast = serie.rolling(window=4).apply(lambda x: np.dot(x, pesos), raw=True)
+    return forecast, None
+
+def forecast_ponderado_6m(serie):
+    pesos = np.array([1, 1, 2, 3, 4, 5])
+    pesos = pesos / pesos.sum()
+    forecast = serie.rolling(window=6).apply(lambda x: np.dot(x, pesos), raw=True)
+    return forecast, None
+
+def forecast_ses(serie):
+    model = SimpleExpSmoothing(serie, initialization_method="estimated").fit()
+    return model.fittedvalues, model
 
 def forecast_holt(serie):
     model = Holt(serie, initialization_method="estimated").fit(optimized=True)
@@ -20,6 +41,7 @@ def forecast_holt_winters(serie):
     ).fit()
     return model.fittedvalues, model
 
+# --- MAPE y selección de modelo ---
 def calcular_mape(df_mes, metodo_fn):
     errores = []
     fechas = sorted(df_mes['mes'].unique())
@@ -38,6 +60,40 @@ def calcular_mape(df_mes, metodo_fn):
             continue
     return np.mean(errores) if errores else np.inf
 
+def seleccionar_mejor_modelo(mapes):
+    mapes_validos = {k: v for k, v in mapes.items() if v != np.inf}
+    if not mapes_validos:
+        return 'promedio_movil'
+    min_error = min(mapes_validos.values())
+    candidatos = [k for k, v in mapes_validos.items() if v == min_error]
+    prioridad = ['holt_winters', 'holt_linear', 'ses', 'pmp_6m', 'pmp_4m', 'promedio_6m', 'promedio_movil']
+    for metodo in prioridad:
+        if metodo in candidatos:
+            return metodo
+    return candidatos[0]
+
+def safe_forecast(serie, metodo_forecast):
+    try:
+        forecast_serie, modelo = metodo_forecast(serie)
+
+        if modelo is not None:  # SES, Holt, Holt-Winters
+            pred = modelo.forecast(1)[0]
+        else:
+            # rolling / ponderados: buscamos último valor no nulo de la serie de forecast
+            forecast_serie = forecast_serie.dropna()
+            pred = forecast_serie.iloc[-1] if len(forecast_serie) > 0 else serie.tail(4).mean()
+
+    except Exception as e:
+        pred = serie.tail(4).mean()
+
+    if pd.isna(pred) or pred < 0:
+        pred = serie.tail(3).mean()
+    if pd.isna(pred) or pred < 0:
+        pred = 0
+
+    return round(pred)
+
+# --- Forecast principal ---
 def forecast_engine(df, lead_time_meses=3):
     df['fecha'] = pd.to_datetime(df['fecha'])
     df['mes'] = df['fecha'].dt.to_period('M')
@@ -45,7 +101,6 @@ def forecast_engine(df, lead_time_meses=3):
         'demanda': 'sum',
         'demanda_sin_outlier': 'sum'
     }).reset_index()
-
     df_mensual.rename(columns={'demanda_sin_outlier': 'demanda_limpia'}, inplace=True)
     df_mensual['mes'] = df_mensual['mes'].dt.to_timestamp()
 
@@ -56,18 +111,6 @@ def forecast_engine(df, lead_time_meses=3):
 
     for sku in df_mensual['sku'].unique():
         df_sku = df_mensual[df_mensual['sku'] == sku].copy()
-        for _, row in df_sku.iterrows():
-            resultados.append({
-                'sku': sku,
-                'mes': row['mes'],
-                'demanda': row['demanda'],
-                'demanda_limpia': row['demanda_limpia'],
-                'forecast': np.nan,
-                'forecast_up': np.nan,
-                'tipo_mes': 'histórico',
-                'metodo_forecast': None
-            })
-
         df_valid = df_sku[df_sku['demanda_limpia'] > 0]
         if len(df_valid) < 1:
             continue
@@ -79,14 +122,29 @@ def forecast_engine(df, lead_time_meses=3):
         else:
             modelos = {
                 'promedio_movil': lambda s: forecast_promedio_movil(s, 4),
+                'promedio_6m': forecast_promedio_6m,
+                'pmp_4m': forecast_ponderado_4m,
+                'pmp_6m': forecast_ponderado_6m,
+                'ses': forecast_ses,
                 'holt_linear': forecast_holt,
                 'holt_winters': forecast_holt_winters
             }
             mapes = {name: calcular_mape(df_valid, model) for name, model in modelos.items()}
-            mejor_modelo = min(mapes, key=mapes.get)
-            metodo_forecast = modelos[mejor_modelo]
+            mejor_modelo = seleccionar_mejor_modelo(mapes)
+            metodo_forecast = modelos.get(mejor_modelo, lambda s: forecast_promedio_movil(s, 4))
 
-        # BACKTEST
+        for _, row in df_sku.iterrows():
+            resultados.append({
+                'sku': sku,
+                'mes': row['mes'],
+                'demanda': row['demanda'],
+                'demanda_limpia': row['demanda_limpia'],
+                'forecast': np.nan,
+                'forecast_up': np.nan,
+                'tipo_mes': 'histórico',
+                'metodo_forecast': mejor_modelo
+            })
+
         all_months = sorted(df_valid['mes'].unique())
         for mes_objetivo in all_months:
             mes_forecast = mes_objetivo - pd.DateOffset(months=lead_time_meses)
@@ -96,16 +154,8 @@ def forecast_engine(df, lead_time_meses=3):
             corte = df_valid[df_valid['mes'] <= fecha_limite]
             if len(corte) < 1:
                 continue
-            try:
-                serie_bt = corte.set_index('mes')['demanda_limpia']
-                _, modelo_bt = metodo_forecast(serie_bt)
-                pred = modelo_bt.forecast(1)[0] if modelo_bt else serie_bt.tail(4).mean()
-                if pd.isna(pred) or pred < 0:
-                    pred = serie_bt.tail(3).mean()
-                if pd.isna(pred) or pred < 0:
-                    pred = 0
-            except:
-                pred = 0
+            serie_bt = corte.set_index('mes')['demanda_limpia']
+            pred = safe_forecast(serie_bt, metodo_forecast)
 
             demanda_real = df_valid[df_valid['mes'] == mes_objetivo]['demanda_limpia'].values[0]
             demanda_original = df_valid[df_valid['mes'] == mes_objetivo]['demanda'].values[0]
@@ -114,31 +164,21 @@ def forecast_engine(df, lead_time_meses=3):
                 'mes': mes_objetivo,
                 'demanda': demanda_original,
                 'demanda_limpia': demanda_real,
-                'forecast': round(pred),
-                'forecast_up': np.nan,  # NO SE USA EN BACKTEST
+                'forecast': pred,
+                'forecast_up': np.nan,
                 'tipo_mes': 'backtest',
                 'metodo_forecast': mejor_modelo
             })
 
-        # PROYECCIÓN
         std_forecast = df_valid.sort_values('mes')['demanda_limpia'].tail(6).std()
         for mes_forecast in forecast_horizon:
             fecha_limite = mes_forecast - pd.DateOffset(months=1)
             corte = df_valid[df_valid['mes'] <= fecha_limite]
-
             if len(corte) < 1:
                 pred = 0
             else:
-                try:
-                    serie_fut = corte.set_index('mes')['demanda_limpia']
-                    _, modelo_fut = metodo_forecast(serie_fut)
-                    pred = modelo_fut.forecast(1)[0] if modelo_fut else serie_fut.tail(4).mean()
-                    if pd.isna(pred) or pred < 0:
-                        pred = serie_fut.tail(3).mean()
-                    if pd.isna(pred) or pred < 0:
-                        pred = 0
-                except:
-                    pred = 0
+                serie_fut = corte.set_index('mes')['demanda_limpia']
+                pred = safe_forecast(serie_fut, metodo_forecast)
 
             forecast_up = round(pred + 1 * std_forecast) if pd.notnull(std_forecast) else round(pred)
 
@@ -147,7 +187,7 @@ def forecast_engine(df, lead_time_meses=3):
                 'mes': mes_forecast,
                 'demanda': np.nan,
                 'demanda_limpia': np.nan,
-                'forecast': round(pred),
+                'forecast': pred,
                 'forecast_up': forecast_up,
                 'tipo_mes': 'proyección',
                 'metodo_forecast': mejor_modelo
@@ -202,6 +242,10 @@ def generar_comparativa_forecasts(df, horizonte_meses=6):
         serie = df_valid.set_index('mes')['demanda_limpia']
         modelos = {
             'promedio_movil': lambda s: forecast_promedio_movil(s, 4),
+            'promedio_6m': forecast_promedio_6m,
+            'pmp_4m': forecast_ponderado_4m,
+            'pmp_6m': forecast_ponderado_6m,
+            'ses': forecast_ses,
             'holt_linear': forecast_holt,
             'holt_winters': forecast_holt_winters
         }
@@ -217,13 +261,11 @@ def generar_comparativa_forecasts(df, horizonte_meses=6):
                     try:
                         serie_corte = corte.set_index('mes')['demanda_limpia']
                         if len(serie_corte) < 4:
-                           pred = serie_corte.tail(len(serie_corte)).mean()  # usa los meses disponibles (1, 2 o 3)
+                            pred = serie_corte.mean()  # usa lo que haya
                         else:
-                           _, modelo_fit = modelo_func(serie_corte)
-                           pred = modelo_fit.forecast(1)[0] if modelo_fit else serie_corte.tail(4).mean()
-
+                            pred = safe_forecast(serie_corte, modelo_func)
                     except:
-                        pred = serie_corte.mean()
+                        pred = serie_corte.mean() if len(serie_corte) > 0 else 0
 
                 resultados.append({
                     'sku': sku,
@@ -242,4 +284,3 @@ def generar_comparativa_forecasts(df, horizonte_meses=6):
     ).reset_index()
 
     return df_pivot
-

@@ -8,7 +8,7 @@ def consolidar_historico_stock(df_demanda, df_maestro):
     df['fecha'] = pd.to_datetime(df['fecha'])
     df['mes'] = df['fecha'].dt.to_period('M').dt.to_timestamp()
     df['unidades_perdidas'] = df.apply(
-        lambda row: row['demanda_sin_outlier'] if row['demanda'] == 0 and row['demanda_sin_outlier'] > 0 else 0,
+        lambda row: row['demanda_sin_stockout'] - row['demanda'] if row['demanda_sin_stockout'] > row['demanda'] else 0,
         axis=1
     )
 

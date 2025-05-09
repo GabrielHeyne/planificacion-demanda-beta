@@ -1,87 +1,46 @@
 import pandas as pd
 import streamlit as st
-from utils import render_logo_sidebar
 import plotly.graph_objects as go
-from modules.stock_projector import project_stock
-import os
+from utils.render_logo_sidebar import render_logo_sidebar
+from utils.filtros import aplicar_filtro_sku  # Importamos la función de filtros
 
-# --- Cargar estilo ---
+# --- Cargar estilos y logo ---
 def load_css():
     with open("utils/style.css") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
-
 load_css()
 render_logo_sidebar()
 
+# --- Título de la página ---
 st.markdown("<h1 style='font-size: 26px; font-weight: 500;'>📦 PROYECCIÓN DE STOCK MENSUAL</h1>", unsafe_allow_html=True)
 st.markdown("<p style='font-size: 16px;'>Proyección de stock por SKU y análisis de pérdidas estimadas</p>", unsafe_allow_html=True)
 
-# --- Cargar forecast desde disco si está vacío ---
-if 'forecast' not in st.session_state:
-    if os.path.exists("data/forecast.csv"):
-        df_forecast = pd.read_csv("data/forecast.csv")
-        df_forecast['mes'] = pd.to_datetime(df_forecast['mes'])
-        st.session_state['forecast'] = df_forecast
-
-# --- Validaciones ---
-if 'forecast' not in st.session_state or st.session_state['forecast'] is None:
-    st.warning("⚠️ No se ha generado el forecast aún. Ve al módulo correspondiente y vuelve a intentarlo.")
+# --- Validaciones de datos ---
+if "proyeccion_stock" not in st.session_state or st.session_state["proyeccion_stock"].empty:
+    st.warning("⚠️ Aún no se ha proyectado el stock. Ve a la página de Inicio y presiona 'Comenzar planificación'.")
     st.stop()
 
-if 'stock_actual' not in st.session_state or st.session_state['stock_actual'] is None:
-    st.warning("⚠️ No se ha cargado el archivo de stock actual. Ve al módulo de carga y vuelve a intentarlo.")
-    st.stop()
+df_proyeccion = st.session_state["proyeccion_stock"].copy()
+df_maestro = st.session_state.get("maestro", pd.DataFrame())
+df_stock = st.session_state.get("stock_actual", pd.DataFrame())
+df_stock_hist = st.session_state.get("stock_historico", pd.DataFrame())
 
-# --- Carga de datos ---
-df_forecast = st.session_state['forecast'].copy()
-df_stock = st.session_state['stock_actual'].copy()
-df_repos = st.session_state.get('reposiciones', pd.DataFrame(columns=['sku', 'fecha', 'cantidad']))
-df_maestro = st.session_state.get('maestro', pd.DataFrame())
+# --- Filtro reutilizable por SKU ---
+df_proyeccion['mes'] = pd.to_datetime(df_proyeccion['mes'])  # Asegurarse de que la columna mes sea datetime
+df_filtrado, sku_sel = aplicar_filtro_sku(df_proyeccion, incluir_todos=False, key="sku_proyeccion")  # Aplicar el filtro por SKU con la función de filtros.py
 
-# --- Selector de SKU ---
-skus = sorted(df_forecast['sku'].unique())
-sku_sel = st.selectbox("Selecciona un SKU", skus)
-
-# --- Stock inicial automático (última fecha disponible) ---
-stock_info = df_stock[df_stock['sku'] == sku_sel]
-if stock_info.empty:
-    st.warning("⚠️ No hay stock inicial cargado para este SKU.")
-    st.stop()
-
-fecha_inicio = stock_info['fecha'].max().to_period('M').to_timestamp()
-fila_stock = stock_info[stock_info['fecha'].dt.to_period('M').dt.to_timestamp() == fecha_inicio].iloc[0]
-stock_inicial = int(fila_stock['stock'])
-
-# Precio de venta
-precio_venta = None
-if not df_maestro.empty and sku_sel in df_maestro['sku'].values:
-    precio_venta = df_maestro[df_maestro['sku'] == sku_sel]['precio_venta'].iloc[0]
-
-# --- Ejecutar proyección ---
-df_resultado = project_stock(
-    df_forecast=df_forecast,
-    df_stock=df_stock,
-    df_repos=df_repos,
-    sku=sku_sel,
-    fecha_inicio=fecha_inicio,
-    precio_venta=precio_venta
-)
-
+df_resultado = df_filtrado[df_filtrado["sku"] == sku_sel].copy()
 if df_resultado.empty:
-    st.warning("⚠️ No se pudo generar la proyección. Revisa si el forecast contiene datos desde la fecha seleccionada.")
+    st.warning("⚠️ No hay proyección disponible para este SKU.")
     st.stop()
 
-# ✅ Guardar la proyección para el planificador IA
-st.session_state['stock_proyectado'] = df_resultado
-
-# ✅ Guardar CSV de persistencia
-df_resultado.to_csv(f"data/proyeccion_stock_{sku_sel}.csv", index=False)
+# --- Stock inicial (última fila disponible)
+stock_inicial = int(df_filtrado["stock_inicial_mes"].iloc[0])
+unidades_perdidas = int(df_resultado["unidades_perdidas"].sum())
+unidades_repos = int(df_resultado["repos_aplicadas"].sum())
 
 # --- KPIs visuales ---
 st.markdown("<div class='titulo-con-fondo'>📌 Información del Producto Seleccionado</div>", unsafe_allow_html=True)
-
-unidades_perdidas = int(df_resultado['unidades_perdidas'].sum())
-unidades_repos = int(df_resultado['repos_aplicadas'].sum())
 
 def tarjeta_kpi(label, value):
     return f"""
@@ -159,16 +118,13 @@ with colg2:
     st.plotly_chart(fig_loss, use_container_width=True)
 
 # --- Gráfico de stock histórico mensual ---
-if 'stock_historico' in st.session_state and st.session_state['stock_historico'] is not None:
-    df_hist = st.session_state['stock_historico'].copy()
-    df_hist = df_hist[df_hist['sku'] == sku_sel].copy()
-
+if not df_stock_hist.empty:
+    df_hist = df_stock_hist[df_stock_hist['sku'] == sku_sel].copy()
     if not df_hist.empty:
         df_hist['mes'] = pd.to_datetime(df_hist['fecha']).dt.to_period('M').dt.to_timestamp()
         df_hist = df_hist.groupby('mes')['stock'].sum().reset_index()
 
         st.markdown("<div class='titulo-con-fondo'>📚 Evolución Histórica del Stock</div>", unsafe_allow_html=True)
-
         fig_hist = go.Figure()
         fig_hist.add_trace(go.Scatter(
             x=df_hist['mes'],
@@ -194,10 +150,47 @@ def generar_csv(df):
     return df_export.to_csv(index=False).encode('utf-8')
 
 csv = generar_csv(df_resultado)
-
 st.download_button(
     label="📥 Descargar archivo CSV",
     data=csv,
     file_name=f"proyeccion_stock_{sku_sel}.csv",
     mime="text/csv"
 )
+
+# --- Gráfico de Demanda Mensual Real vs Limpia ---
+if "demanda_limpia" in st.session_state:
+    df_demanda = st.session_state["demanda_limpia"].copy()
+    df_demanda['fecha'] = pd.to_datetime(df_demanda['fecha'])
+    df_demanda['mes'] = df_demanda['fecha'].dt.to_period('M').dt.to_timestamp()
+
+    df_mensual = df_demanda.groupby(['sku', 'mes'])[['demanda', 'demanda_sin_outlier']].sum().reset_index()
+    df_sku_mensual = df_mensual[df_mensual['sku'] == sku_sel]
+
+    if not df_sku_mensual.empty:
+        st.markdown("<div class='titulo-con-fondo'>📈 Demanda Mensual Real vs Limpia</div>", unsafe_allow_html=True)
+        fig_demanda = go.Figure()
+        fig_demanda.add_trace(go.Scatter(
+            x=df_sku_mensual['mes'],
+            y=df_sku_mensual['demanda'],
+            mode='lines+markers',
+            name='Demanda Real',
+            line=dict(color='darkblue', width=2),
+            marker=dict(size=6)
+        ))
+        fig_demanda.add_trace(go.Scatter(
+            x=df_sku_mensual['mes'],
+            y=df_sku_mensual['demanda_sin_outlier'],
+            mode='lines+markers',
+            name='Demanda Limpia',
+            line=dict(color='orange', width=2),
+            marker=dict(size=6)
+        ))
+        fig_demanda.update_layout(
+            xaxis_title="Mes",
+            yaxis_title="Unidades",
+            height=420,
+            margin=dict(t=50),
+            xaxis=dict(tickformat="%b %Y", dtick="M1", tickangle=-45),
+            legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center")  # 👈 leyenda arriba y centrada
+        )
+        st.plotly_chart(fig_demanda, use_container_width=True)
