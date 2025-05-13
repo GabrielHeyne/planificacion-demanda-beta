@@ -2,7 +2,6 @@ import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
 from utils.render_logo_sidebar import render_logo_sidebar
-from utils.filtros import aplicar_filtro_sku  # Importamos la función de filtros
 
 # --- Cargar estilos y logo ---
 def load_css():
@@ -25,17 +24,17 @@ df_maestro = st.session_state.get("maestro", pd.DataFrame())
 df_stock = st.session_state.get("stock_actual", pd.DataFrame())
 df_stock_hist = st.session_state.get("stock_historico", pd.DataFrame())
 
-# --- Filtro reutilizable por SKU ---
-df_proyeccion['mes'] = pd.to_datetime(df_proyeccion['mes'])  # Asegurarse de que la columna mes sea datetime
-df_filtrado, sku_sel = aplicar_filtro_sku(df_proyeccion, incluir_todos=False, key="sku_proyeccion")  # Aplicar el filtro por SKU con la función de filtros.py
+# --- Selección de SKU ---
+skus = df_proyeccion["sku"].unique()
+sku_sel = st.selectbox("Selecciona un SKU", sorted(skus))
 
-df_resultado = df_filtrado[df_filtrado["sku"] == sku_sel].copy()
+df_resultado = df_proyeccion[df_proyeccion["sku"] == sku_sel].copy()
 if df_resultado.empty:
     st.warning("⚠️ No hay proyección disponible para este SKU.")
     st.stop()
 
 # --- Stock inicial (última fila disponible)
-stock_inicial = int(df_filtrado["stock_inicial_mes"].iloc[0])
+stock_inicial = int(df_resultado["stock_inicial_mes"].iloc[0])
 unidades_perdidas = int(df_resultado["unidades_perdidas"].sum())
 unidades_repos = int(df_resultado["repos_aplicadas"].sum())
 

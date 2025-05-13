@@ -1,6 +1,7 @@
 import streamlit as st
 from PIL import Image
 import os
+import pandas as pd
 
 # --- Configuración de página ---
 st.set_page_config(page_title="Planity", layout="wide")
@@ -40,6 +41,43 @@ with col2:
     st.markdown("<div class='card-module'>📉 Proyección de stock y pérdidas</div>", unsafe_allow_html=True)
     st.markdown("<div class='card-module'>🛒 Definición de compras</div>", unsafe_allow_html=True)
 
+# --- Selección de modo de carga ---
+modo_carga = st.radio(
+    "Selecciona el origen de los datos:",
+    ("Desde Base de Datos", "Carga manual de archivos")
+)
+
+# --- Carga manual si fue seleccionada ---
+if modo_carga == "Carga manual de archivos":
+    st.markdown("### 📁 Carga manual de archivos")
+
+    # Crear carpeta temporal si no existe
+    os.makedirs("tmp", exist_ok=True)
+
+    archivos = {
+        "demanda_cruda": "📈 Demanda histórica",
+        "stock_historico": "📊 Stock histórico",
+        "maestro": "📋 Maestro de productos",
+        "stock_actual": "📦 Stock actual",
+        "reposiciones": "🚚 Reposiciones futuras"
+    }
+
+    for key, label in archivos.items():
+        file_path = f"tmp/{key}.csv"
+        archivo = st.file_uploader(f"{label} (CSV)", type=["csv"], key=f"{key}_upload")
+
+        if archivo:
+            # Guardar en disco y en session_state
+            df = pd.read_csv(archivo)
+            df.to_csv(file_path, index=False)
+            st.session_state[key] = df
+            st.success(f"✅ {label} cargado correctamente")
+        elif os.path.exists(file_path):
+            # Cargar desde archivo temporal si no se ha subido de nuevo
+            st.session_state[key] = pd.read_csv(file_path)
+            st.info(f"📂 {label} cargado desde sesión anterior")
+
+
 # --- Botón de carga ---
 st.markdown("<br><br>", unsafe_allow_html=True)
 if st.button("🚀 Comenzar planificación"):
@@ -52,7 +90,6 @@ if st.button("🚀 Comenzar planificación"):
         paso5 = st.empty()
         paso6 = st.empty()
 
-        # Llamar a la función centralizada de carga
         from utils.init_session import init_session
         init_session(pasos=[paso1, paso2, paso3, paso4, paso5, paso6], progress=progress)
 

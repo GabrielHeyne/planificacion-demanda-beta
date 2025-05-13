@@ -4,18 +4,15 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta
-from utils.filtros import aplicar_filtro_sku_y_fecha
+from utils.render_logo_sidebar import render_logo_sidebar
 
 # ✅ Configuración inicial
 st.set_page_config(layout="wide")
 
 # ✅ Logo y estilos
-from utils.render_logo_sidebar import render_logo_sidebar
-
 def load_css():
     with open("utils/style.css") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
-
 load_css()
 render_logo_sidebar()
 
@@ -32,10 +29,50 @@ df = st.session_state["demanda_limpia"].copy()
 df['fecha'] = pd.to_datetime(df['fecha'])
 df['semana'] = df['fecha'].dt.to_period('W').apply(lambda r: r.start_time)
 
-# (Aquí continúa el resto de tu lógica de filtros, gráficos, KPIs, etc.)
+# ✅ Filtros independientes por página
+skus = sorted(df["sku"].unique())
+skus.insert(0, "TODOS")
 
+fecha_min = df['fecha'].min().date()
+fecha_max = df['fecha'].max().date()
+fecha_min_defecto = max(fecha_min, fecha_max - relativedelta(months=24))
 
-df_filtrado, sku_seleccionado, fecha_inicio, fecha_fin = aplicar_filtro_sku_y_fecha(df)
+# Claves únicas por página
+sku_key = "filtro_demanda_total_sku"
+fecha_inicio_key = "filtro_demanda_total_fecha_inicio"
+fecha_fin_key = "filtro_demanda_total_fecha_fin"
+
+# Inicializar si no existen
+if sku_key not in st.session_state:
+    st.session_state[sku_key] = "TODOS"
+if fecha_inicio_key not in st.session_state:
+    st.session_state[fecha_inicio_key] = fecha_min_defecto
+if fecha_fin_key not in st.session_state:
+    st.session_state[fecha_fin_key] = fecha_max
+
+# --- Mostrar filtros
+col1, col2, col3 = st.columns([1.2, 1, 1])
+with col1:
+    st.session_state[sku_key] = st.selectbox("🔎 Filtrar por SKU", options=skus, index=skus.index(st.session_state[sku_key]))
+with col2:
+    st.session_state[fecha_inicio_key] = st.date_input("📅 Fecha de inicio", value=st.session_state[fecha_inicio_key], min_value=fecha_min, max_value=fecha_max)
+with col3:
+    st.session_state[fecha_fin_key] = st.date_input("📅 Fecha de fin", value=st.session_state[fecha_fin_key], min_value=fecha_min, max_value=fecha_max)
+
+# --- Aplicar filtros
+df_filtrado = df.copy()
+if st.session_state[sku_key] != "TODOS":
+    df_filtrado = df_filtrado[df_filtrado["sku"] == st.session_state[sku_key]]
+df_filtrado = df_filtrado[
+    (df_filtrado["fecha"] >= pd.to_datetime(st.session_state[fecha_inicio_key])) &
+    (df_filtrado["fecha"] <= pd.to_datetime(st.session_state[fecha_fin_key]))
+]
+
+# --- Variables finales para usar en gráficos y KPIs
+sku_seleccionado = st.session_state[sku_key]
+fecha_inicio = st.session_state[fecha_inicio_key]
+fecha_fin = st.session_state[fecha_fin_key]
+
 
 
 # --- KPIs y quiebres ---

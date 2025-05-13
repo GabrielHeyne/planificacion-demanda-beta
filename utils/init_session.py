@@ -26,23 +26,39 @@ def init_session(pasos=None, progress=None):
         if progress:
             progress.progress((i + 1) / 6)
 
-    # Paso 1: Descarga de archivos
-    marcar_paso(0, "📁 1) Descargando archivos desde Google Drive...")
-    if "demanda_cruda" not in st.session_state:
-        st.session_state["demanda_cruda"] = descargar_csv_drive("1OXm_cHTP9Si4CtBInQZqQro0QR-pCWaQ", "demanda.csv")
-    if "stock_historico" not in st.session_state:
-        st.session_state["stock_historico"] = descargar_csv_drive("1GgjD8bL4QwHQo76pRv2bW2RGE71d4s9r", "stock_hist.csv")
-    if "maestro" not in st.session_state:
-        st.session_state["maestro"] = descargar_csv_drive("1ueW0mjB9aVUcDh4e8ywEIikJAvm-530h", "maestro.csv")
-    if "stock_actual" not in st.session_state:
-        st.session_state["stock_actual"] = descargar_csv_drive("1q5LfbrjT5dxlfMZQ-WvWqdKWz4fg7JBh", "stock_actual.csv")
-    if "reposiciones" not in st.session_state:
-        st.session_state["reposiciones"] = descargar_csv_drive("1v1tSpWkmR6Y4h39nD3uDG99JOx_qgLIk", "repos.csv")
-    marcar_paso(0, "✅ 1) Archivos descargados correctamente")
+    modo = st.session_state.get("modo_carga", "drive")
 
-    if st.session_state["stock_historico"] is None or st.session_state["stock_historico"].empty:
-        st.error("❌ No se ha cargado correctamente el archivo de stock histórico.")
-        st.stop()
+    if modo == "manual":
+        marcar_paso(0, "📁 1) Usando archivos cargados manualmente...")
+
+        # Verificación básica
+        claves = ["demanda_cruda", "maestro", "stock_actual"]
+        for clave in claves:
+            if clave not in st.session_state or st.session_state[clave] is None:
+                st.error(f"❌ Falta cargar el archivo obligatorio: {clave}")
+                st.stop()
+
+        # Garantizar que reposiciones y stock histórico estén aunque sean vacíos
+        if "reposiciones" not in st.session_state:
+            st.session_state["reposiciones"] = pd.DataFrame()
+        if "stock_historico" not in st.session_state:
+            st.session_state["stock_historico"] = pd.DataFrame()
+
+        marcar_paso(0, "✅ 1) Archivos manuales cargados correctamente")
+
+    else:
+        marcar_paso(0, "📁 1) Descargando archivos desde Google Drive...")
+        if "demanda_cruda" not in st.session_state:
+            st.session_state["demanda_cruda"] = descargar_csv_drive("1OXm_cHTP9Si4CtBInQZqQro0QR-pCWaQ", "demanda.csv")
+        if "stock_historico" not in st.session_state:
+            st.session_state["stock_historico"] = descargar_csv_drive("1GgjD8bL4QwHQo76pRv2bW2RGE71d4s9r", "stock_hist.csv")
+        if "maestro" not in st.session_state:
+            st.session_state["maestro"] = descargar_csv_drive("1ueW0mjB9aVUcDh4e8ywEIikJAvm-530h", "maestro.csv")
+        if "stock_actual" not in st.session_state:
+            st.session_state["stock_actual"] = descargar_csv_drive("1q5LfbrjT5dxlfMZQ-WvWqdKWz4fg7JBh", "stock_actual.csv")
+        if "reposiciones" not in st.session_state:
+            st.session_state["reposiciones"] = descargar_csv_drive("1v1tSpWkmR6Y4h39nD3uDG99JOx_qgLIk", "repos.csv")
+        marcar_paso(0, "✅ 1) Archivos descargados correctamente")
 
     # Paso 2: Limpieza de demanda
     marcar_paso(1, "🧹 2) Limpiando demanda histórica...")
@@ -55,7 +71,9 @@ def init_session(pasos=None, progress=None):
     if "forecast" not in st.session_state:
         st.session_state["forecast"] = forecast_engine(st.session_state["demanda_limpia"])
     if "forecast_comparativa" not in st.session_state:
-        st.session_state["forecast_comparativa"] = generar_comparativa_forecasts(st.session_state["demanda_limpia"], horizonte_meses=6)
+        st.session_state["forecast_comparativa"] = generar_comparativa_forecasts(
+            st.session_state["demanda_limpia"], horizonte_meses=6
+        )
     marcar_paso(2, "✅ 3) Forecast por SKU generado")
 
     # Paso 4: Proyección de stock
@@ -92,3 +110,4 @@ def init_session(pasos=None, progress=None):
     marcar_paso(5, "✅ 6) Contexto de negocio listo")
 
     st.session_state["datos_cargados"] = True
+
